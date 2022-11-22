@@ -1,1 +1,6 @@
 .DS_Store
+data/
+debug/
+.ipynb_checkpoints/
+.idea/
+token
