@@ -1,3 +1,5 @@
+import datetime
+
 import numpy as np
 import logging
 
@@ -6,6 +8,14 @@ def get_value(df,key):
         return df.loc[key]
     except KeyError:
         return None
+
+
+def date2str(date, format="%Y%m%d"):
+    return datetime.datetime.strftime(date, format)
+
+def str2date(s_date, format="%Y%m%d"):
+    return datetime.datetime.strptime(s_date, format)
+
 
 def fit(data_x, data_y):
     """
@@ -16,7 +26,7 @@ def fit(data_x, data_y):
     """
 
 
-    print(data_x,data_y)
+    # print(data_x,data_y)
 
     m = len(data_y)
     x_bar = np.mean(data_x)

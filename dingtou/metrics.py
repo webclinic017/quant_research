@@ -3,15 +3,14 @@ import logging
 import numpy as np
 from empyrical import max_drawdown
 
-# from mlstock.const import RISK_FREE_ANNUALLY_RETRUN
-# from mlstock.utils import utils
-
 logger = logging.getLogger(__name__)
+
+RISK_FREE_ANNUALLY_RETRUN = 0.03  # 在我国无风险收益率一般取值十年期国债收益，我查了一下有波动，取个大致的均值3%
 
 
 def scope(df):
-    start_date = datetime.strptime(df.trade_date.min(), "%Y%m%d")
-    end_date = datetime.strptime(df.trade_date.max(), "%Y%m%d")
+    start_date = df.index.min()
+    end_date = df.index.max()
     years = end_date.year - start_date.year
     months = years * 12 + end_date.month - start_date.month
     weeks, _ = divmod((end_date - start_date).days, 7)
@@ -98,7 +97,7 @@ def metrics(df):
         df.to_csv("data/df_portfolio.csv")
     else:
         import pandas as pd
-        df = pd.read_csv("data/df_portfolio.csv",header=0)
+        df = pd.read_csv("data/df_portfolio.csv", header=0)
         df['trade_date'] = df['trade_date'].astype(str)
 
     assert 'next_pct_chg' in df.columns, "缺少列：next_pct_chg"

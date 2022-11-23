@@ -1,5 +1,4 @@
 import logging
-import math
 
 from pandas import DataFrame
 
@@ -37,11 +36,15 @@ class Position:
     用来定义持有的仓位
     """
 
-    def __init__(self, code, position, create_date, initial_value):
+    def __init__(self, code, position, create_date):
         self.code = code
         self.position = position
         self.create_date = create_date
-        self.initial_value = initial_value
+        self.update_date = create_date
+
+    def update(self, date, position):
+        self.update_date = date
+        self.position += position
 
 
 class Broker:
@@ -50,7 +53,7 @@ class Broker:
     每天运行买卖就行
     """
 
-    def __init__(self,cash):
+    def __init__(self, cash):
         """
         :param df_selected_stocks:
         :param df_daily:
@@ -63,15 +66,14 @@ class Broker:
         # 存储数据的结构
         self.positions = {}
         self.trades = []
+        self.trade_history = []
         self.df_values = DataFrame()
 
-    def set_data(self, data):
-        # 投资的标的
-        # self.df_daily = df_daily.set_index(['date', 'code'])  # 设索引是为了加速，太慢了否则
-        # self.df_index = df_index
-        # self.df_calendar = df_calendar
-        # self.daily_trade_dates = df_daily.trade_date.unique()
-        self.data = data
+    def set_data(self, df_baseline, funds_dict: dict):
+        # 基金数据，是一个dict，key是基金代码，value是dataframe
+        self.funds_dict = funds_dict
+        # 基准指数
+        self.df_baseline = df_baseline
 
     def real_sell(self, trade, trade_date):
         try:
@@ -89,6 +91,7 @@ class Broker:
 
         # 更新头寸,仓位,交易历史
         self.trades.remove(trade)
+        self.trade_history.append(trade)
         self.cashin(amount - commission)
         self.positions.pop(trade.code, None)  # None可以防止pop异常
         _return = (amount - position.initial_value) / position.initial_value
@@ -99,22 +102,30 @@ class Broker:
                      trade.code, trade_date, price, position.initial_value, amount, commission, _return * 100)
         return True
 
-    def real_buy(self, trade, trade_date):
-        # 使用try/exception + 索引loc是为了提速，直接用列，或者防止KeyError的intersection，都非常慢， 60ms vs 3ms，20倍关系
-        # 另外，trade_date列是否是str还是date/int对速度影响不大
-        # df_stock = self.df_daily.loc[self.df_daily.index.intersection([(trade_date, trade.code)])]
-        df = self.data['fund']
+    def real_buy(self, trade, today):
+        if trade.target_date>today:
+            return False
+
+        if trade.amount>self.cash:
+            logger.warning("无法购买购买基金[%s]%.1f, 现金[%.0f]已经不够了",trade.code,trade.amount,self.cash)
+            return False
+
         try:
+            # 使用try/exception + 索引loc是为了提速，直接用列，或者防止KeyError的intersection，都非常慢， 60ms vs 3ms，20倍关系
+            # 另外，trade_date列是否是str还是date/int对速度影响不大
+            # df_stock = self.df_daily.loc[self.df_daily.index.intersection([(trade_date, trade.code)])]
+            df = self.funds_dict[trade.code]
             series_fund = df.loc[trade.target_date]
         except KeyError:
-            logger.warning("基金[%s]没有在[%s]无数据，无法买入，只能延后", trade.code, trade_date)
+            logger.warning("基金[%s]没有在[%s]无数据，无法买入，只能延后", trade.code, today)
             return False
 
         # assert len(df_stock) == 1, f"根据{trade_date}和{trade.code}筛选出多于1行的数据：{len(df_stock)}行"
 
-        price = series_fund.value
+
 
         # 计算可以买多少份基金，是扣除了手续费的金额 / 基金当天净值
+        # 下取整一下
         position = int(trade.amount * (1 - BUY_COMMISSION_RATE) / series_fund.value)
 
         if position == 0:
@@ -122,19 +133,28 @@ class Broker:
                            self.cash, trade.code, price)
             return False
 
-        # 计算实际费用
-        actual_cost = position * price
+
+        price = series_fund.value
+        # 计算要购买的价值（市值）
+        buy_value = position * price
         # 计算佣金
-        commission = BUY_COMMISSION_RATE * actual_cost
+        commission = BUY_COMMISSION_RATE * buy_value # 还要算一下佣金，因为上面下取整了
         self.total_commission += commission
 
         # 更新仓位,头寸,交易历史
         self.trades.remove(trade)
-        self.positions[trade.code] = Position(trade.code, position, trade_date, actual_cost)
-        self.cashout(actual_cost + commission)
+        self.trade_history.append(trade)
+        # 创建，或者，更新持仓
+        if trade.code in self.positions:
+            self.positions[trade.code].update(today, position)
+        else:
+            self.positions[trade.code] = Position(trade.code, position, today)
 
-        logger.debug("基金[%s]已于[%s]日按照最高价[%.2f]买入%d股,买入金额[%.2f],佣金[%.2f]",
-                     trade.code, trade_date, price, position, actual_cost, commission)
+        # 一种现金流出：购买的价值 + 佣金
+        self.cashout(buy_value + commission)
+
+        logger.debug("基金[%s]已于[%s]日按照最高价[%.2f]买入%d股,买入金额[%.2f],佣金[%.2f],总持仓:%.0f",
+                     trade.code, today, price, position, buy_value, commission,self.positions[trade.code].position)
         return True
 
     def cashin(self, amount):
@@ -167,7 +187,7 @@ class Broker:
     def buy(self, code, date, amount):
         """创建买入单，下个交易日成交"""
         self.trades.append(Trade(code, date, amount, 'buy'))
-        logger.debug("创建下个交易日[%s]买单，买入基金 [%s] %.2f股", date, code, amount)
+        logger.debug("创建下个交易日[%s]买单，买入基金 [%s] %.2f元", date, code, amount)
 
     def sell(self, code, date, amount):
         """创建卖出单"""
@@ -176,18 +196,21 @@ class Broker:
 
     def update_market_value(self, trade_date):
         """
-        # 日子，总市值，现金，市值
+        更新你持有的组合的每日市值
+        列：[日子，总市值，现金，市值]
         市值 = sum(position_i * price_i)
         """
         total_position_value = 0
         for code, position in self.positions.items():
             # logger.debug("查找基金[%s] %s数据", code, trade_date)
 
-            df = self.data['fund']
+            df = self.funds_dict[code]
             try:
                 series_fund = df.loc[trade_date]
                 # assert len(df_the_stock) == 1, f"根据{trade_date}和{code}筛选出多于1行的数据：{len(df_the_stock)}行"
                 market_value = series_fund.value * position.position
+                # logger.debug(" %s 日基金 %s 的数据，市值%.1f = 价格%.1f * 持仓%.1f ",
+                #              trade_date, code, market_value, series_fund.value, position.position)
             except KeyError:
                 logger.warning(" %s 日没有基金 %s 的数据，当天它的市值计作 0 ", trade_date, code)
                 market_value = 0
@@ -195,12 +218,13 @@ class Broker:
             total_position_value += market_value
 
         total_value = total_position_value + self.cash
+        # 这个是创建（也就是插入）一行到dataframe里，也就是组合的当日市值
         self.df_values = self.df_values.append({'trade_date': trade_date,
-                                                'total_value': total_value,
-                                                'total_position_value': total_position_value,
+                                                'total_value': total_value,  # 总市值
+                                                'total_position_value': total_position_value,  # 总持仓价值（不含现金）
                                                 'cash': self.cash}, ignore_index=True)
-        logger.debug("%s 市值 %.2f = %d只基金市值 %.2f + 持有现金 %.2f",
-                     trade_date, total_value, len(self.positions), total_position_value, self.cash)
+        # logger.debug("%s 市值 %.2f = %d只基金市值 %.2f + 持有现金 %.2f",
+        #              trade_date, total_value, len(self.positions), total_position_value, self.cash)
 
     def set_strategy(self, strategy):
         self.strategy = strategy
