@@ -2,6 +2,9 @@ from datetime import datetime
 
 
 class BackTester():
+    """
+    回测核心类，类似于backtrader的cerebro
+    """
 
     def __init__(self, broker, start_date, end_date):
         """
@@ -32,16 +35,8 @@ class BackTester():
         # 先把基准的日期装进去
         self.dates = self.dates.union(df_baseline.index.tolist())
 
+        # 这一坨都是在遍历所有的基金数据，合并他们的日期，再排序，得到所有的日期，用于执行回测的日期 => self.dates
         for name, df_fund in funds_dict.items():
-            # 把所有的数据（基准baseline和所有的基金）都设置成日期为索引：
-            # 要求每个数据中，要么索引叫index，要么有一个列叫date（然后把他变成索引）
-            assert "date" in df_fund.columns or df_fund.index.name == 'date', \
-                f"数据[{name}]的dataframe未包含date列：{df_fund.columns}"
-
-            # 如果date在列中，把他变成索引
-            if "date" in df_fund.columns:
-                df_fund.set_index("date", inplace=True)
-
             # 把基金们的日期都合并到一个集合中，这个日期很重要，用于后续的遍历
             self.dates = self.dates.union(df_fund.index.tolist())
 
@@ -62,6 +57,8 @@ class BackTester():
         :return:
         """
         for i, today in enumerate(self.dates):
+
+            # 防止提早启动回测，只在start_date才开始，到end_date就结束
             if today < datetime.strptime(self.start_date, "%Y%m%d"): continue
             if today > datetime.strptime(self.end_date, "%Y%m%d"): return
 
@@ -69,5 +66,5 @@ class BackTester():
             if i == len(self.dates) - 1: continue  # 防止越界
             self.strategy.next(today=today, next_trade_date=self.dates[i + 1])
 
-            # 触发交易代理的执行
+            # 触发交易代理的执行，这里才会真正的执行交易
             self.broker.run(today)

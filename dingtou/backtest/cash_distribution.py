@@ -3,7 +3,7 @@ import logging
 logger = logging.getLogger(__name__)
 class CashDistribute():
     """
-    头寸分配，
+    头寸分配策略
     """
 
     def __init__(self, amount, periods):
@@ -15,6 +15,10 @@ class CashDistribute():
         self.amount_once = amount / periods  # 每次的最大购买金额
         logger.info("预估会投资%d次，每次投资%.2f，总金额是%.2f",periods,self.amount_once,amount)
 
+    def calculate(self, ma_value, current_value):
+        pass
+
+class MACashDistribute(CashDistribute):
     def calculate(self, ma_value, current_value):
         """
         ratio = 指数当前值 / 指数均值，
@@ -33,3 +37,10 @@ class CashDistribute():
         if ratio < 0.3: return self.amount_once * 1
         # 大于30%的跌幅，就投1.5倍的配额
         return self.amount_once * 1.5
+
+
+class AverageCashDistribute(CashDistribute):
+    """完全平均"""
+
+    def calculate(self, ma_value, current_value):
+        return self.amount_once

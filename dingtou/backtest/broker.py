@@ -2,6 +2,8 @@ import logging
 
 from pandas import DataFrame
 
+from backtest.utils import date2str
+
 logger = logging.getLogger(__name__)
 
 BUY_COMMISSION_RATE = 0.015  # 买入手续费1.5%
@@ -103,13 +105,22 @@ class Broker:
         return True
 
     def real_buy(self, trade, today):
-        if trade.target_date>today:
+        """
+        真正的去买
+        :param trade:
+        :param today:
+        :return:
+        """
+        # 如果今天还没到买单的日期，就退出这个trade的交易
+        if trade.target_date > today:
             return False
 
-        if trade.amount>self.cash:
-            logger.warning("无法购买购买基金[%s]%.1f, 现金[%.0f]已经不够了",trade.code,trade.amount,self.cash)
+        # 现金不够这次交易了，就退出
+        if trade.amount > self.cash:
+            logger.warning("无法购买购买基金[%s]%.1f, 现金[%.0f]已经不够了", trade.code, trade.amount, self.cash)
             return False
 
+        # 先获得这笔交易对应的数据
         try:
             # 使用try/exception + 索引loc是为了提速，直接用列，或者防止KeyError的intersection，都非常慢， 60ms vs 3ms，20倍关系
             # 另外，trade_date列是否是str还是date/int对速度影响不大
@@ -122,28 +133,27 @@ class Broker:
 
         # assert len(df_stock) == 1, f"根据{trade_date}和{trade.code}筛选出多于1行的数据：{len(df_stock)}行"
 
+        # 计算可以买多少份基金，是扣除了手续费的金额 / 基金当天净值，下取整
+        position = int(trade.amount * (1 - BUY_COMMISSION_RATE) / series_fund.close)
 
-
-        # 计算可以买多少份基金，是扣除了手续费的金额 / 基金当天净值
-        # 下取整一下
-        position = int(trade.amount * (1 - BUY_COMMISSION_RATE) / series_fund.value)
-
+        # 买不到任何一个整数份数，就退出
         if position == 0:
             logger.warning("资金分配失败：从总现金[%.2f]中分配给基金[%s]（价格%.2f）失败",
                            self.cash, trade.code, price)
             return False
 
-
-        price = series_fund.value
         # 计算要购买的价值（市值）
+        price = series_fund.close
         buy_value = position * price
+
         # 计算佣金
-        commission = BUY_COMMISSION_RATE * buy_value # 还要算一下佣金，因为上面下取整了
+        commission = BUY_COMMISSION_RATE * buy_value  # 还要算一下佣金，因为上面下取整了
         self.total_commission += commission
 
         # 更新仓位,头寸,交易历史
         self.trades.remove(trade)
         self.trade_history.append(trade)
+
         # 创建，或者，更新持仓
         if trade.code in self.positions:
             self.positions[trade.code].update(today, position)
@@ -153,8 +163,14 @@ class Broker:
         # 一种现金流出：购买的价值 + 佣金
         self.cashout(buy_value + commission)
 
-        logger.debug("基金[%s]已于[%s]日按照最高价[%.2f]买入%d股,买入金额[%.2f],佣金[%.2f],总持仓:%.0f",
-                     trade.code, today, price, position, buy_value, commission,self.positions[trade.code].position)
+        logger.debug("%s日按照[%.2f]的价格买入基金[%s]%d份,买入金额[%.2f],佣金[%.2f],总持仓:%.0f份",
+                     date2str(today),
+                     price,
+                     trade.code,
+                     position,
+                     buy_value,
+                     commission,
+                     self.positions[trade.code].position)
         return True
 
     def cashin(self, amount):
@@ -208,9 +224,9 @@ class Broker:
             try:
                 series_fund = df.loc[trade_date]
                 # assert len(df_the_stock) == 1, f"根据{trade_date}和{code}筛选出多于1行的数据：{len(df_the_stock)}行"
-                market_value = series_fund.value * position.position
+                market_value = series_fund.close * position.position
                 # logger.debug(" %s 日基金 %s 的数据，市值%.1f = 价格%.1f * 持仓%.1f ",
-                #              trade_date, code, market_value, series_fund.value, position.position)
+                #              trade_date, code, market_value, series_fund.close, position.position)
             except KeyError:
                 logger.warning(" %s 日没有基金 %s 的数据，当天它的市值计作 0 ", trade_date, code)
                 market_value = 0

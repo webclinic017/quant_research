@@ -171,8 +171,8 @@ if __name__ == '__main__':
     # 运行回测
     results = cerebro.run(optreturn=True)
 
-    if not os.path.exists(f"debug/"): os.makedirs(f"debug/")
-    file_name = f"debug/report.html"
+    if not os.path.exists(f"../debug/"): os.makedirs(f"../debug/")
+    file_name = f"../debug/report.html"
 
     b = Bokeh(filename=file_name,
               style='bar',
