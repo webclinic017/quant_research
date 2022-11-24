@@ -1,6 +1,8 @@
 import logging
 
 logger = logging.getLogger(__name__)
+
+
 class CashDistribute():
     """
     头寸分配策略
@@ -13,10 +15,11 @@ class CashDistribute():
         :return:
         """
         self.amount_once = amount / periods  # 每次的最大购买金额
-        logger.info("预估会投资%d次，每次投资%.2f，总金额是%.2f",periods,self.amount_once,amount)
+        logger.info("预估会投资%d次，每次投资%.2f，总金额是%.2f", periods, self.amount_once, amount)
 
     def calculate(self, ma_value, current_value):
         pass
+
 
 class MACashDistribute(CashDistribute):
     def calculate(self, ma_value, current_value):
@@ -29,14 +32,14 @@ class MACashDistribute(CashDistribute):
         """
         ratio = 1 - current_value / ma_value
         # print(ratio, self.amount_once)
-        # 距离均线5%以内，投资30%的配额
-        if ratio < 0.05: return self.amount_once * 0.3
-        # 距离均线5%~10%以内，投资80%的配额
-        if ratio < 0.1: return self.amount_once * 0.8
-        # 距离均线10%~30%以内，投资100%的配额
-        if ratio < 0.3: return self.amount_once * 1
+        # 距离均线5%以内，投资50%的配额
+        if ratio < 0.05: return self.amount_once * 0.5, 0.5
+        # 距离均线5%~10%以内，投资100%的配额
+        if ratio < 0.1: return self.amount_once * 1, 1
+        # 距离均线10%~30%以内，投资150%的配额
+        if ratio < 0.3: return self.amount_once * 1.5, 1.5
         # 大于30%的跌幅，就投1.5倍的配额
-        return self.amount_once * 1.5
+        return self.amount_once * 2, 2
 
 
 class AverageCashDistribute(CashDistribute):

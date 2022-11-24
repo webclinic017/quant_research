@@ -74,6 +74,9 @@ def load_index(index_code):
 
 def load_fund(fund_code):
     df_fund = load(fund_code, ak.fund_open_fund_info_em, fund=fund_code, indicator="累计净值走势")
+    if df_fund is None or '净值日期' not in df_fund.columns:
+        logger.error("基金[%s]数据加载出现问题：%r", fund_code, df_fund)
+        raise
     df_fund['净值日期'] = pd.to_datetime(df_fund['净值日期'], format='%Y-%m-%d')
     df_fund['code'] = fund_code  # 都追加一个code字段
     df_fund.rename(columns={'净值日期': 'date', '累计净值': 'close'}, inplace=True)
@@ -92,32 +95,33 @@ def load_calendar(start_date, end_date):
 def plot(df_baseline, df_fund, df_portfolio):
     code = df_fund.iloc[0].code
 
-    plt.title(f"{code}投资报告")
     fig = plt.figure(figsize=(50, 10), dpi=(200))
-    plt.xticks(rotation=45)
 
     # 设置X轴
-    ax_index = fig.add_subplot(111)
-    ax_index.set_xlabel('日期')  # 设置x轴标题
-    ax_index.set_ylabel('指数', color='r')  # 设置Y轴标题
+    ax_baseline = fig.add_subplot(111)
+    ax_baseline.grid()
+    ax_baseline.set_title(f"{code}投资报告")
+    # ax_baseline.set_xticks(rotation=45)
+    ax_baseline.set_xlabel('日期')  # 设置x轴标题
+    ax_baseline.set_ylabel('指数', color='r')  # 设置Y轴标题
 
     # 设置Y轴
-    ax_fund = ax_index.twinx()
-    ax_fund.set_ylabel('基金', color='b')  # 设置Y轴标题
-
-    # 设置Y轴
-    ax_portfolio = ax_index.twinx()
-    ax_portfolio.set_ylabel('投资组合', color='c')  # 设置Y轴标题
+    ax_portfolio = ax_baseline.twinx()  # 返回共享x轴的第二个轴
     ax_portfolio.spines['right'].set_position(('outward', 60))  # right, left, top, bottom
+    ax_portfolio.set_ylabel('投资组合', color='c')  # 设置Y轴标题
 
     # 画指数和均线
-    h_baseline_close, = ax_index.plot(df_baseline.index, df_baseline.close, 'r')
-    h_baseline_sma, = ax_index.plot(df_baseline.index, df_baseline.sma, color='g', linestyle='--',linewidth=0.5)
+    h_baseline_close, = ax_baseline.plot(df_baseline.index, df_baseline.close, 'r')
+    h_baseline_sma, = ax_baseline.plot(df_baseline.index, df_baseline.sma, color='g', linestyle='--', linewidth=0.5)
 
-    # 画涨跌
-    ax_index.scatter(df_baseline.index, df_baseline.long, c='r', s=10)
-    ax_index.scatter(df_baseline.index, df_baseline.short, c='g', s=10)
-    ax_index.scatter(df_baseline.index, df_baseline.signal, marker='^', c='b', s=20)
+    # 画买信号
+    # ax_baseline.scatter(df_baseline.index, df_baseline.long, c='r', s=10)
+    # ax_baseline.scatter(df_baseline.index, df_baseline.short, c='g', s=10)
+    ax_baseline.scatter(df_baseline.index, df_baseline.signal, marker='^', c='b', s=20)
+
+    # 设置基金Y轴
+    ax_fund = ax_baseline.twinx()
+    ax_fund.set_ylabel('基金', color='b')  # 设置Y轴标题
 
     # 画基金
     h_fund, = ax_fund.plot(df_fund.index, df_fund.close, 'b')
@@ -134,8 +138,10 @@ def plot(df_baseline, df_fund, df_portfolio):
 
 
 def main(code):
-    # 加载基准指数数据（周频）
-    if "sh" in args.baseline:
+    # 加载基准指数数据（周频），如果没有设，就用基金自己；如果是sh开头，加载指数，否则，当做基金加载
+    if args.baseline is None:
+        df_baseline = load_fund(fund_code=code)
+    elif "sh" in args.baseline:
         df_baseline = load_index(index_code=args.baseline)
     else:
         df_baseline = load_fund(fund_code=args.baseline)
@@ -203,13 +209,16 @@ sh000852：中证1000
 003567	华夏行业景气混合
 000689	前海开源新经济灵活配置混合A
 
+
+
 # 以中证500为基准，测试基金定投，以年均线做择时(52周)
 python -m test1 -c 003095 -s 20180101 -e 20211201 -b sh000905 -bma 52 -p 25
 # 以中证500为基准，测试中证500ETF定投(嘉实中证500ETF:159922)，以年均线做择时
 python -m test1 -c 159922 -s 20180101 -e 20211201 -b sh000905  -bma 52 -p 25
 # 以基金自己作为基准，测试基金定投，以基金月均线做择时(4周)
 python -m test1 -c 003095 -s 20180101 -e 20211201 -b 003095 -bma 4 -p 25
-
+# 挨个测试基金，用基金本身当基准
+python -m test1 -s 20190101 -e 20221201 -bma 4 -p 25 -c 540008,002910,001606,000729,090018,001643,001644,001822,003567,000689
 测试1：
     这个是用大盘（上证、沪深300、中证500、...)做择时的基准。
     然后，根据择时信号，定投买入对应的基金产品。
@@ -222,7 +231,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-s', '--start_date', type=str, default="20150101", help="开始日期")
     parser.add_argument('-e', '--end_date', type=str, default="20221201", help="结束日期")
-    parser.add_argument('-b', '--baseline', type=str, help="基准指数")
+    parser.add_argument('-b', '--baseline', type=str, default=None, help="基准指数")
     parser.add_argument('-bma', '--baseline_sma', type=int, default=52, help="基准指数的移动均值周期数")
     parser.add_argument('-c', '--code', type=str, help="股票代码")
     parser.add_argument('-a', '--amount', type=int, default=500000, help="投资金额")
@@ -230,7 +239,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     if "," in args.code:
-        for code in args.code:
+        for code in args.code.split(","):
             main(code)
     else:
         main(args.code)

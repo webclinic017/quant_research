@@ -5,7 +5,6 @@ from backtest.strategy import Strategy
 from backtest.utils import get_value, fit
 
 
-
 class TimingStrategy(Strategy):
     """
     定投策略:
@@ -75,9 +74,12 @@ class TimingStrategy(Strategy):
             if index_close > index_pre_close:
                 df_baseline.loc[today, 'short'] = index_close  # 仅记录下跌
             else:
-                df_baseline.loc[today, 'signal'] = index_close  # 买信号
+
                 # 计算出购入金额
-                amount = self.cash_distribute.calculate(sma_value, current_value=index_close)
+                amount, ratio = self.cash_distribute.calculate(sma_value, current_value=index_close)
+
+                df_baseline.loc[today, 'signal'] = index_close * ratio  # 买信号
+
                 # 扣除手续费后，下取整算购买份数
                 self.broker.buy(fund_code, next_trade_date, amount)
                 # share = int(amount*(1-BUY_COMMISSION_RATE) / fund_net_value)
