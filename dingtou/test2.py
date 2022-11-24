@@ -7,9 +7,9 @@ from pandas import DataFrame
 from backtest import utils
 from backtest.backtester import BackTester
 from backtest.broker import Broker
-from backtest.cash_distribution import MACashDistribute
+from backtest.cash_distribution import AverageCashDistribute
 from backtest.utils import date2str, str2date, day2week
-from timing_strategy import TimingStrategy
+from period_strategy import PeriodStrategy
 from backtest import metrics
 import matplotlib.pyplot as plt
 
@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 def backtest(df_baseline: DataFrame, funds_data: dict, start_date, end_date, amount, periods, sma_periods):
     broker = Broker(amount)
     backtester = BackTester(broker, start_date, end_date)
-    backtester.set_strategy(TimingStrategy(broker, MACashDistribute(amount, periods), sma_periods))
+    backtester.set_strategy(PeriodStrategy(broker, AverageCashDistribute(amount, periods), sma_periods))
     # 单独调用一个set_data，是因为里面要做特殊处理
     backtester.set_data(df_baseline, funds_data)
 
@@ -204,12 +204,11 @@ sh000852：中证1000
 003567	华夏行业景气混合
 000689	前海开源新经济灵活配置混合A
 
-python -m test2 -c 003095 -s 20150101 -e 20221201 -b 003095 -bma 4 # 4周/月均线
+# 完全定投
+python -m test2 -c 003095 -s 20180101 -e 20211201 -b 003095 -p 150
 
-测试2：
-    这个基金本身做择时的基准。移动均线也改为了4周/月均线，增加买入的信号
-    然后，根据择时信号，定投买入对应的基金产品。
-    所以，要传入，基准指数代码baseline，和，基金代码code
+测试3：
+    这个基金不做择时了，就是定投
 """
 if __name__ == '__main__':
     utils.init_logger()
@@ -222,7 +221,7 @@ if __name__ == '__main__':
     parser.add_argument('-bma', '--baseline_sma', type=int, default=52, help="基准指数的移动均值周期数")
     parser.add_argument('-c', '--code', type=str, help="股票代码")
     parser.add_argument('-a', '--amount', type=int, default=500000, help="投资金额")
-    parser.add_argument('-p', '--periods', type=int, default=50, help="投资期数（周）")
+    parser.add_argument('-p', '--periods', type=int, default=52*3, help="投资期数（周）")
     args = parser.parse_args()
 
     if "," in args.code:

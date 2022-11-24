@@ -117,7 +117,7 @@ class Broker:
 
         # 现金不够这次交易了，就退出
         if trade.amount > self.cash:
-            logger.warning("无法购买购买基金[%s]%.1f, 现金[%.0f]已经不够了", trade.code, trade.amount, self.cash)
+            logger.warning("[%s]无法购买基金[%s]，购买金额%.1f>现金%.0f", date2str(today),trade.code, trade.amount, self.cash)
             return False
 
         # 先获得这笔交易对应的数据
@@ -202,8 +202,12 @@ class Broker:
 
     def buy(self, code, date, amount):
         """创建买入单，下个交易日成交"""
+        if amount>self.cash:
+            logger.warning("创建%s日买入交易单失败：购买金额%.1f>持有现金%.1f",date2str(date),amount,self.cash)
+            return False
         self.trades.append(Trade(code, date, amount, 'buy'))
         logger.debug("创建下个交易日[%s]买单，买入基金 [%s] %.2f元", date, code, amount)
+        return True
 
     def sell(self, code, date, amount):
         """创建卖出单"""
