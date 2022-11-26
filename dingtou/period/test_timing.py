@@ -7,7 +7,8 @@ from pandas import DataFrame
 from backtest import utils
 from backtest.backtester import BackTester
 from backtest.broker import Broker
-from backtest.cash_distribution import MACashDistribute
+from backtest.data_loader import load_fund, load_index
+from period.cash_distribution import MACashDistribute
 from backtest.utils import date2str, str2date, day2week
 from timing_strategy import TimingStrategy
 from backtest import metrics
@@ -48,48 +49,6 @@ def calculate_metrics(df_portfolio, df_baseline, df_fund, broker):
 
     return df_portfolio
 
-
-def load(name, func, **kwargs):
-    logger.info(f"加载{name}数据，函数:{func.__name__}，参数:{kwargs}")
-    if not os.path.exists("data"): os.mkdir("data")
-    file_name = f"data/{name}.csv"
-    if not os.path.exists(file_name):
-        df = func(**kwargs)
-        logger.debug(f"调用了函数:{func.__name__}")
-        df.to_csv(file_name)
-    else:
-        logger.debug(f"加载缓存文件:{file_name}")
-        df = pd.read_csv(file_name)
-    return df
-
-
-def load_index(index_code):
-    df_stock_index = load(index_code, ak.stock_zh_index_daily, symbol=index_code)
-    df_stock_index['date'] = pd.to_datetime(df_stock_index['date'], format='%Y-%m-%d')
-    df_stock_index['code'] = index_code  # 都追加一个code字段
-    df_stock_index = df_stock_index.set_index('date')
-
-    return df_stock_index
-
-
-def load_fund(fund_code):
-    df_fund = load(fund_code, ak.fund_open_fund_info_em, fund=fund_code, indicator="累计净值走势")
-    if df_fund is None or '净值日期' not in df_fund.columns:
-        logger.error("基金[%s]数据加载出现问题：%r", fund_code, df_fund)
-        raise
-    df_fund['净值日期'] = pd.to_datetime(df_fund['净值日期'], format='%Y-%m-%d')
-    df_fund['code'] = fund_code  # 都追加一个code字段
-    df_fund.rename(columns={'净值日期': 'date', '累计净值': 'close'}, inplace=True)
-    df_fund = df_fund.set_index('date')
-
-    return df_fund
-
-
-def load_calendar(start_date, end_date):
-    df = load("trade_date", ak.tool_trade_date_hist_sina)
-    #    df = df[(df.trade_date > start_date) & (df.trade_date < end_date)]
-    print("加载交易日期：%r~%r" % (df.iloc[0], df.iloc[-1]))
-    return df
 
 
 def plot(df_baseline, df_fund, df_portfolio):
@@ -161,8 +120,8 @@ def main(code):
         args.amount,
         args.periods,
         args.baseline_sma)
-    df_portfolio.sort_values('trade_date')
-    df_portfolio.set_index('trade_date', inplace=True)
+    df_portfolio.sort_values('date')
+    df_portfolio.set_index('date', inplace=True)
 
     # 统一过滤一下时间区间,
     # 回测之后再过滤，会担心把start_date之前的也回测了，
@@ -212,13 +171,13 @@ sh000852：中证1000
 
 
 # 以中证500为基准，测试基金定投，以年均线做择时(52周)
-python -m test1 -c 003095 -s 20180101 -e 20211201 -b sh000905 -bma 52 -p 25
+python -m period.test1 -c 003095 -s 20180101 -e 20211201 -b sh000905 -bma 52 -p 25
 # 以中证500为基准，测试中证500ETF定投(嘉实中证500ETF:159922)，以年均线做择时
-python -m test1 -c 159922 -s 20180101 -e 20211201 -b sh000905  -bma 52 -p 25
+python -m period.test1 -c 159922 -s 20180101 -e 20211201 -b sh000905  -bma 52 -p 25
 # 以基金自己作为基准，测试基金定投，以基金月均线做择时(4周)
-python -m test1 -c 003095 -s 20180101 -e 20211201 -b 003095 -bma 4 -p 25
+python -m period.test1 -c 003095 -s 20180101 -e 20211201 -b 003095 -bma 4 -p 25
 # 挨个测试基金，用基金本身当基准
-python -m test1 -s 20190101 -e 20221201 -bma 4 -p 25 -c 540008,002910,001606,000729,090018,001643,001644,001822,003567,000689
+python -m period.test1 -s 20190101 -e 20221201 -bma 4 -p 25 -c 540008,002910,001606,000729,090018,001643,001644,001822,003567,000689
 测试1：
     这个是用大盘（上证、沪深300、中证500、...)做择时的基准。
     然后，根据择时信号，定投买入对应的基金产品。

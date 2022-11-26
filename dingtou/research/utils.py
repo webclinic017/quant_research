@@ -101,7 +101,14 @@ def __calc_OHLC_in_group(df_in_group):
     # 先复制最后一条（即周五或者月末日），为了得到所有的字段
     df_result = df_in_group.tail(1).copy()
     # index.min()是本周第一天
-    if 'open' in df_in_group: df_result['open'] = df_in_group.loc[df_in_group.index.min()]['open']
+    if 'open' in df_in_group:
+        # print(df_in_group)
+        # print("-"*40)
+        # print(df_in_group.index.min())
+        # print("-" * 40)
+        # print(df_in_group.loc[df_in_group.index.min()]['open'])
+        # print("="*80)
+        df_result['open'] = df_in_group.loc[df_in_group.index.min()]['open']
     # index.max()是本周最后天
     if 'close' in df_in_group: df_result['close'] = df_in_group.loc[df_in_group.index.max()]['close']
     # .max()是这一周的high列的最大值

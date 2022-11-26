@@ -7,7 +7,8 @@ from pandas import DataFrame
 from backtest import utils
 from backtest.backtester import BackTester
 from backtest.broker import Broker
-from backtest.cash_distribution import AverageCashDistribute
+from backtest.data_loader import load_index, load_fund
+from period.cash_distribution import AverageCashDistribute
 from backtest.utils import date2str, str2date, day2week
 from period_strategy import PeriodStrategy
 from backtest import metrics
@@ -49,46 +50,6 @@ def calculate_metrics(df_portfolio, df_baseline, df_fund, broker):
     return df_portfolio
 
 
-def load(name, func, **kwargs):
-    logger.info(f"加载{name}数据，函数:{func.__name__}，参数:{kwargs}")
-    if not os.path.exists("data"): os.mkdir("data")
-    file_name = f"data/{name}.csv"
-    if not os.path.exists(file_name):
-        df = func(**kwargs)
-        logger.debug(f"调用了函数:{func.__name__}")
-        df.to_csv(file_name)
-    else:
-        logger.debug(f"加载缓存文件:{file_name}")
-        df = pd.read_csv(file_name)
-    return df
-
-
-def load_index(index_code):
-    df_stock_index = load(index_code, ak.stock_zh_index_daily, symbol=index_code)
-    df_stock_index['date'] = pd.to_datetime(df_stock_index['date'], format='%Y-%m-%d')
-    df_stock_index['code'] = index_code  # 都追加一个code字段
-    df_stock_index = df_stock_index.set_index('date')
-
-    return df_stock_index
-
-
-def load_fund(fund_code):
-    df_fund = load(fund_code, ak.fund_open_fund_info_em, fund=fund_code, indicator="累计净值走势")
-    df_fund['净值日期'] = pd.to_datetime(df_fund['净值日期'], format='%Y-%m-%d')
-    df_fund['code'] = fund_code  # 都追加一个code字段
-    df_fund.rename(columns={'净值日期': 'date', '累计净值': 'close'}, inplace=True)
-    df_fund = df_fund.set_index('date')
-
-    return df_fund
-
-
-def load_calendar(start_date, end_date):
-    df = load("trade_date", ak.tool_trade_date_hist_sina)
-    #    df = df[(df.trade_date > start_date) & (df.trade_date < end_date)]
-    print("加载交易日期：%r~%r" % (df.iloc[0], df.iloc[-1]))
-    return df
-
-
 def plot(df_baseline, df_fund, df_portfolio):
     code = df_fund.iloc[0].code
 
@@ -112,7 +73,7 @@ def plot(df_baseline, df_fund, df_portfolio):
 
     # 画指数和均线
     # h_baseline_close, = ax_baseline.plot(df_baseline.index, df_baseline.close, 'r')
-    h_baseline_sma, = ax_baseline.plot(df_baseline.index, df_baseline.sma, color='g', linestyle='--',linewidth=0.5)
+    h_baseline_sma, = ax_baseline.plot(df_baseline.index, df_baseline.sma, color='g', linestyle='--', linewidth=0.5)
 
     # 画涨跌
     # ax_baseline.scatter(df_baseline.index, df_baseline.long, c='r', s=10)
@@ -156,8 +117,8 @@ def main(code):
         args.amount,
         args.periods,
         args.baseline_sma)
-    df_portfolio.sort_values('trade_date')
-    df_portfolio.set_index('trade_date', inplace=True)
+    df_portfolio.sort_values('date')
+    df_portfolio.set_index('date', inplace=True)
 
     # 统一过滤一下时间区间,
     # 回测之后再过滤，会担心把start_date之前的也回测了，
@@ -207,7 +168,7 @@ sh000852：中证1000
 # 完全定投
 python -m test2 -c 003095 -s 20180101 -e 20211201 -b 003095 -p 150
 
-测试3：
+测试2：
     这个基金不做择时了，就是定投
 """
 if __name__ == '__main__':
@@ -221,7 +182,7 @@ if __name__ == '__main__':
     parser.add_argument('-bma', '--baseline_sma', type=int, default=52, help="基准指数的移动均值周期数")
     parser.add_argument('-c', '--code', type=str, help="股票代码")
     parser.add_argument('-a', '--amount', type=int, default=500000, help="投资金额")
-    parser.add_argument('-p', '--periods', type=int, default=52*3, help="投资期数（周）")
+    parser.add_argument('-p', '--periods', type=int, default=52 * 3, help="投资期数（周）")
     args = parser.parse_args()
 
     if "," in args.code:
