@@ -2,7 +2,7 @@ import logging
 
 from pandas import DataFrame
 
-from backtest.utils import date2str
+from dingtou.backtest import date2str
 
 logger = logging.getLogger(__name__)
 

@@ -4,7 +4,7 @@ import numpy as np
 from dateutil.relativedelta import relativedelta
 from empyrical import max_drawdown
 
-from backtest.utils import date2str
+from dingtou.backtest import date2str
 
 logger = logging.getLogger(__name__)
 

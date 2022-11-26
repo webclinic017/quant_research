@@ -1,9 +1,8 @@
 import numpy as np
 import talib
 
-from backtest.strategy import Strategy
-from backtest.utils import get_value, fit
-
+from dingtou.backtest.strategy import Strategy
+from dingtou.backtest import get_value
 
 
 class PeriodStrategy(Strategy):

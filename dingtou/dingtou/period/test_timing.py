@@ -1,17 +1,15 @@
 import argparse
-import logging, os
-import akshare as ak
-import pandas as pd
+import logging
 from pandas import DataFrame
 
-from backtest import utils
-from backtest.backtester import BackTester
-from backtest.broker import Broker
-from backtest.data_loader import load_fund, load_index
-from period.cash_distribution import MACashDistribute
-from backtest.utils import date2str, str2date, day2week
+from dingtou.backtest import utils
+from dingtou.backtest.backtester import BackTester
+from dingtou.backtest.broker import Broker
+from dingtou.backtest import load_fund, load_index
+from dingtou.period.cash_distribution import MACashDistribute
+from dingtou.backtest import date2str, str2date, day2week
 from timing_strategy import TimingStrategy
-from backtest import metrics
+from dingtou.backtest import metrics
 import matplotlib.pyplot as plt
 
 logger = logging.getLogger(__name__)

@@ -1,9 +1,8 @@
-import numpy as np
 import talib
 
-from backtest import utils
-from backtest.strategy import Strategy
-from backtest.utils import get_value, fit
+from dingtou.backtest import utils
+from dingtou.backtest.strategy import Strategy
+from dingtou.backtest import fit
 
 
 class GridStrategy(Strategy):

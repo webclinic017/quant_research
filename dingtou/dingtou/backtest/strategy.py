@@ -1,7 +1,4 @@
 import numpy as np
-import talib
-
-from backtest.utils import get_value, fit
 
 
 class Strategy():
