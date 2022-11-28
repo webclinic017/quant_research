@@ -5,10 +5,13 @@ from pandas import DataFrame
 from dingtou.backtest import utils
 from dingtou.backtest.backtester import BackTester
 from dingtou.backtest.broker import Broker
-from dingtou.backtest import load_index, load_fund
+from dingtou.backtest.data_loader import load_index,load_fund
+from dingtou.period.period_strategy import PeriodStrategy
+from research.utils import date2str, str2date, day2week
+
 from dingtou.period.cash_distribution import AverageCashDistribute
-from dingtou.backtest import date2str, str2date, day2week
-from period_strategy import PeriodStrategy
+
+
 from dingtou.backtest import metrics
 import matplotlib.pyplot as plt
 
@@ -164,7 +167,7 @@ sh000852：中证1000
 000689	前海开源新经济灵活配置混合A
 
 # 完全定投
-python -m test2 -c 003095 -s 20180101 -e 20211201 -b 003095 -p 150
+python -m dingtou.period.test_period -c 003095 -s 20180101 -e 20211201 -b 003095 -p 150
 
 测试2：
     这个基金不做择时了，就是定投

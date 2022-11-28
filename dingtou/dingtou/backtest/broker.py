@@ -2,7 +2,8 @@ import logging
 
 from pandas import DataFrame
 
-from dingtou.backtest import date2str
+from research.utils import date2str
+
 
 logger = logging.getLogger(__name__)
 
@@ -38,15 +39,21 @@ class Position:
     用来定义持有的仓位
     """
 
-    def __init__(self, code, position, create_date):
-        self.code = code
-        self.position = position
+    def __init__(self, code, position, price, create_date):
+        self.code = code # 基金代码
+        self.position = position # 初始仓位
         self.create_date = create_date
         self.update_date = create_date
+        self.cost = price # 初始成本
 
-    def update(self, date, position):
+    def update(self, date, position, price):
         self.update_date = date
+        # 更新新成本和仓位
+        old_value = self.position * self.cost
+        new_value = old_value + position * price
         self.position += position
+        self.cost = new_value/self.position
+
 
 
 class Broker:
@@ -156,9 +163,9 @@ class Broker:
 
         # 创建，或者，更新持仓
         if trade.code in self.positions:
-            self.positions[trade.code].update(today, position)
+            self.positions[trade.code].update(today, position,price)
         else:
-            self.positions[trade.code] = Position(trade.code, position, today)
+            self.positions[trade.code] = Position(trade.code, position,price, today)
 
         # 一种现金流出：购买的价值 + 佣金
         self.cashout(buy_value + commission)
@@ -214,6 +221,12 @@ class Broker:
         self.trades.append(Trade(code, date, amount, 'sell'))
         logger.debug("创建下个交易日[%s]卖单，卖出持仓基金 [%s] %.2f股", date, code, amount)
 
+
+    def sell_out(self, code, date):
+        """清仓单"""
+        amount = self.positions[code]
+        self.sell(code,date,amount)
+
     def update_market_value(self, date):
         """
         更新你持有的组合的每日市值
@@ -245,6 +258,14 @@ class Broker:
                                                 'cash': self.cash}, ignore_index=True)
         # logger.debug("%s 市值 %.2f = %d只基金市值 %.2f + 持有现金 %.2f",
         #              date, total_value, len(self.positions), total_position_value, self.cash)
+
+    def get_total_value(self):
+        """最新的总资产值"""
+        self.df_values.iloc[-1].total_value
+
+    def get_total_position_value(self):
+        """最新的总仓位值"""
+        self.df_values.iloc[-1].total_position_value
 
     def set_strategy(self, strategy):
         self.strategy = strategy

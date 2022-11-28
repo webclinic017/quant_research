@@ -5,9 +5,9 @@ from pandas import DataFrame
 from dingtou.backtest import utils
 from dingtou.backtest.backtester import BackTester
 from dingtou.backtest.broker import Broker
-from dingtou.backtest import load_fund, load_index
+from dingtou.backtest.data_loader import load_fund, load_index
 from dingtou.grid.grid_strategy import GridStrategy
-from dingtou.backtest import date2str, str2date, day2week
+from dingtou.backtest.utils import date2str, str2date, day2week
 from dingtou.backtest import metrics
 import matplotlib.pyplot as plt
 
@@ -105,9 +105,9 @@ def main(code):
     # 加载基金数据，标准化列名，close是为了和标准的指数的close看齐
     df_fund = load_fund(fund_code=code)
 
-    # 由日频改为周频，必须是要日期为索引列，这个是day2week函数要求的
-    df_baseline = day2week(df_baseline)
-    df_fund = day2week(df_fund)
+    # # 由日频改为周频，必须是要日期为索引列，这个是day2week函数要求的
+    # df_baseline = day2week(df_baseline)
+    # df_fund = day2week(df_fund)
 
     df_portfolio, broker = backtest(
         df_baseline,

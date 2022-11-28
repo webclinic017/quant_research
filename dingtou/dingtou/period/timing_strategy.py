@@ -2,7 +2,7 @@ import numpy as np
 import talib
 
 from dingtou.backtest.strategy import Strategy
-from dingtou.backtest import get_value, fit
+from dingtou.backtest.utils import get_value, fit
 
 
 class TimingStrategy(Strategy):

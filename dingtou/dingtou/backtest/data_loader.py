@@ -1,8 +1,13 @@
+import logging
+import pandas as pd
+import os
+import akshare as ak
 
+logger = logging.getLogger(__name__)
 
 def load(name, func, **kwargs):
     logger.info(f"加载{name}数据，函数:{func.__name__}，参数:{kwargs}")
-    if not os.path.exists("../data"): os.mkdir("../data")
+    if not os.path.exists("./data"): os.mkdir("./data")
     file_name = f"data/{name}.csv"
     if not os.path.exists(file_name):
         df = func(**kwargs)

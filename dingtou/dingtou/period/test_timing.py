@@ -5,10 +5,10 @@ from pandas import DataFrame
 from dingtou.backtest import utils
 from dingtou.backtest.backtester import BackTester
 from dingtou.backtest.broker import Broker
-from dingtou.backtest import load_fund, load_index
+from dingtou.backtest.data_loader import load_fund, load_index
 from dingtou.period.cash_distribution import MACashDistribute
-from dingtou.backtest import date2str, str2date, day2week
-from timing_strategy import TimingStrategy
+from dingtou.backtest.utils import date2str, str2date, day2week
+from dingtou.period.timing_strategy import TimingStrategy
 from dingtou.backtest import metrics
 import matplotlib.pyplot as plt
 
@@ -169,13 +169,13 @@ sh000852：中证1000
 
 
 # 以中证500为基准，测试基金定投，以年均线做择时(52周)
-python -m period.test1 -c 003095 -s 20180101 -e 20211201 -b sh000905 -bma 52 -p 25
+python -m dingtou.period.test_timing -c 003095 -s 20180101 -e 20211201 -b sh000905 -bma 52 -p 25
 # 以中证500为基准，测试中证500ETF定投(嘉实中证500ETF:159922)，以年均线做择时
-python -m period.test1 -c 159922 -s 20180101 -e 20211201 -b sh000905  -bma 52 -p 25
+python -m dingtou.period.test_timing -c 159922 -s 20180101 -e 20211201 -b sh000905  -bma 52 -p 25
 # 以基金自己作为基准，测试基金定投，以基金月均线做择时(4周)
-python -m period.test1 -c 003095 -s 20180101 -e 20211201 -b 003095 -bma 4 -p 25
+python -m dingtou.period.test_timing -c 003095 -s 20180101 -e 20211201 -b 003095 -bma 4 -p 25
 # 挨个测试基金，用基金本身当基准
-python -m period.test1 -s 20190101 -e 20221201 -bma 4 -p 25 -c 540008,002910,001606,000729,090018,001643,001644,001822,003567,000689
+python -m dingtou.period.test_timing -s 20190101 -e 20221201 -bma 4 -p 25 -c 540008,002910,001606,000729,090018,001643,001644,001822,003567,000689
 测试1：
     这个是用大盘（上证、沪深300、中证500、...)做择时的基准。
     然后，根据择时信号，定投买入对应的基金产品。

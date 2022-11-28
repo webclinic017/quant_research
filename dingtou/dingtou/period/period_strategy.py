@@ -2,7 +2,8 @@ import numpy as np
 import talib
 
 from dingtou.backtest.strategy import Strategy
-from dingtou.backtest import get_value
+from research.utils import get_value
+
 
 
 class PeriodStrategy(Strategy):
