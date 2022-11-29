@@ -69,7 +69,7 @@ def plot(df_baseline, df_fund, df_portfolio, df_buy_trades, df_sell_trades):
     ax_portfolio.set_ylabel('投资组合', color='c')  # 设置Y轴标题
 
     # 画指数和均线
-    h_baseline_close, = ax_baseline.plot(df_baseline.index, df_baseline.close, 'r')
+    # h_baseline_close, = ax_baseline.plot(df_baseline.index, df_baseline.close, 'r')
     # h_baseline_sma, = ax_baseline.plot(df_baseline.index, df_baseline.sma, color='g', linestyle='--', linewidth=0.5)
 
     # 设置基金Y轴
@@ -84,8 +84,8 @@ def plot(df_baseline, df_fund, df_portfolio, df_buy_trades, df_sell_trades):
     # 画组合收益
     h_portfolio, = ax_portfolio.plot(df_portfolio.index, df_portfolio.total_value, 'c')
 
-    plt.legend(handles=[h_baseline_close, h_portfolio],
-               labels=['指数', '投资组合'],
+    plt.legend(handles=[ h_portfolio],
+               labels=[ '投资组合'],
                loc='best')
 
     mc = mpf.make_marketcolors(
