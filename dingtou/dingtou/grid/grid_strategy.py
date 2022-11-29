@@ -14,7 +14,7 @@ class GridStrategy(Strategy):
     N：初始仓位
     H：网格高度，这里取ATR
     U：账户总额
-    R：仓位风险（百分数，如10%）
+    R：仓位风险（百份数，如10%）
     初始仓位 : N = (U * R) / (9 * ATR)
         推导：
         1、账户总风险：U*R
@@ -35,18 +35,20 @@ class GridStrategy(Strategy):
 
     加减仓，用的是ATR，1个ATR就是0.2个格子，就是原有仓位的0.2N，
     就决定了买多少股，买入价格就是当前价格，
-    这个时候，重新计算买入成本，（之前成本*原有分数 + 新买入金额 ）/ 当前资金,
+    这个时候，重新计算买入成本，（之前成本*原有份数 + 新买入金额 ）/ 当前资金,
     这样，总是保存当前的成本，
     """
 
-    def __init__(self, broker, initial_cash_amount, ):
-        super().__init__(broker, cash_distribute)
+    def __init__(self, broker, initial_cash_amount):
+        super().__init__(broker, None)
         self.U = initial_cash_amount
         self.position_lower = 0.3  # 最低持仓，为总值（基金市值+现金）的1/3，这个是为了收获上升通道的收益
         self.R = 0.1  # 10%的止损
 
     def set_data(self, df_baseline, funds_dict: dict):
         super().set_data(df_baseline, funds_dict)
+
+        self.fund_weekly_dict = {}
 
         # 把日数据变成周数据，并，生成周频的ATR
         for code, df_daily_fund in funds_dict.items():
@@ -55,11 +57,14 @@ class GridStrategy(Strategy):
             df_daily_fund['low'] = df_daily_fund.close
             df_daily_fund['open'] = df_daily_fund.close
             df_weekly_fund = utils.day2week(df_daily_fund)
-            df_weekly_fund['atr'] = talib.ATR(df_weekly_fund.high, df_weekly_fund.low, df_weekly_fund.close,
+            df_weekly_fund['atr'] = talib.ATR(df_weekly_fund.high,
+                                              df_weekly_fund.low,
+                                              df_weekly_fund.close,
                                               timeperiod=20)
-            funds_dict[code] = df_weekly_fund
+            df_weekly_fund['pct_chg'] = df_weekly_fund.close - df_weekly_fund.close.shift(1)
+            self.fund_weekly_dict[code] = df_weekly_fund
 
-    def risk_control(self, code, next_date, current_price):
+    def risk_control(self, code, today, next_date, current_price):
         """
         看是否到了整体止损线，如果是，就清仓
         :param code:
@@ -67,14 +72,23 @@ class GridStrategy(Strategy):
         :param current_price:
         :return:
         """
-
+        if self.broker.positions.get(code, None) is None: return False
         cost = self.broker.positions[code].cost
 
         _return = current_price / cost - 1
         # 计算目前是不是要止损了
         if _return < - self.R:  # self.R为10%，所以当低于-10%的时候，需要清仓
+            logger.info("[%s]损失[%.2f%%]已大于阈值[%.2f%%]，清仓",
+                        date2str(today),
+                        _return * 100,
+                        -self.R * 100)
+            logger.info("[%s]成本[%.2f],当前价格[%.2f],损失[%.2f],总持仓[%.2f],现金[%.2f]",
+                        date2str(today),
+                        cost, current_price,
+                        (cost - current_price) * self.broker.positions[code].position,
+                        self.broker.get_total_position_value(),
+                        self.broker.cash)
             self.broker.sell_out(code, next_date)
-            logger.info("损失[%.2f]已大于阈值[%.2f]，清仓", _return, -self.R)
             return True
 
         return False
@@ -82,72 +96,95 @@ class GridStrategy(Strategy):
     def next(self, today, next_trade_date):
         super().next(today, next_trade_date)
 
-        df_baseline = self.df_baseline
-        df_fund = list(self.funds_dict.values())[0]  # TODO: 这里先选择了第一只基金，将来多只的时候，要遍历的
+        df_daily_fund = list(self.funds_dict.values())[0]  # TODO: 这里先选择了第一只基金，将来多只的时候，要遍历的
+        df_weekly_fund = list(self.fund_weekly_dict.values())[0]  # TODO: 这里先选择了第一只基金，将来多只的时候，要遍历的
 
-        code = df_fund.iloc[0].code
-
-        if self.broker.positions.get(code,None) is None:
+        # 先看日数据：1、止损 2、
+        s_daily_fund = get_value(df_daily_fund, today)
+        if s_daily_fund is None: return
+        if self.broker.positions.get(s_daily_fund.code, None) is None:
             # 如果发现已经清仓了，重置总资金
             self.U = self.broker.cash
-
         # 做风控，每天都做一次封控
-        if self.risk_control(code,next_trade_date):
+        if self.risk_control(code=s_daily_fund.code, today=today, next_date=today, current_price=s_daily_fund.close):
             # 触发风控，就请清仓走人
             return
 
-        # 如果不是周线
-        s_fund = get_value(df_fund, today)
-        if s_fund is None: return  # 如果不是周最后一天，返回
-        if s_fund.atr is None: return  # 没有ATR也返回
-        if df_fund.index.get_loc(today) < 0: return  # 防止越界
-        code = None if s_fund is None else s_fund.code
+        # 再看周数据
+        s_weekly_fund = get_value(df_weekly_fund, today)
+        if s_weekly_fund is None: return  # 如果不是周最后一天，返回
+        if s_weekly_fund.atr is None: return  # 没有ATR也返回
+        if df_weekly_fund.index.get_loc(today) < 0: return  # 防止越界
 
         # 获得上一周的信息
-        s_last_fund = df_baseline.iloc[df_fund.index.get_loc(today) - 1]
-        last_date = s_last_fund.index
+        s_last_weekly_fund = df_weekly_fund.iloc[df_weekly_fund.index.get_loc(today) - 1]
+        last_week_date = s_last_weekly_fund._name
 
-        close = s_fund.close
-        atr = s_fund.atr
-        last_close = s_last_fund.close
+        # 本周信息
+        weekly_price = close = s_weekly_fund.close
+        atr = s_weekly_fund.atr
+        import numpy as np
+        if np.isnan(atr): return  # 如果ATR不存在，返回
+
+        grid_height = atr / 5
+        last_close = s_last_weekly_fund.close
 
         # 计算本周 - 上周的收盘价
         diff = close - last_close
 
         # 看价格差是ATR的几倍，这个也就是看是网格的几个格（1格是1个ATR）
-        atr_times = diff % atr
-        if atr_times == 0:
-            logger.debug("当前[%s]价格[%.1f]和上一个[%s]价格[%.1f]相差不到1个ATR[%.1f]",
+        grid_num = diff // grid_height
+        # print("====>",close, last_close, diff,grid_height,grid_num)
+        if grid_num == 0:
+            logger.debug("[%s]价[%.3f]和[%s]价[%.3f]差[%.3f],<1网格高度[%.3f]",
                          date2str(today),
                          close,
-                         date2str(last_date),
+                         date2str(last_week_date),
                          last_close,
-                         atr)
-        return
+                         diff,
+                         grid_height)
+            return
 
         # 重新计算N，我理解，每一个时间T，ATR都会变，所以对应的风控的仓位都应该变化
-        N = ( self.U * self.R ) / ( 9 * atr )
-        logger.debug("[%s]计算基金[%s]的",date2str(date),code)
+        # print("====>",self.U,self.R,grid_num)
+        N = (self.U * self.R) / (9 * grid_num)  # todo ？？？？9倍不对
+        logger.debug("[%s]基金[%s]根据风控，确定最大买入风控仓位为[%d]份",
+                     date2str(today),
+                     s_weekly_fund.code,
+                     N)
 
         # 是上涨，应该减仓
-        if atr_times > 0:
+        if grid_num > 0:
             # 不一定要减仓，因为先看是否到了总值的1/3，如果不到不减仓
             # 这样是为了挣趋势上涨的钱，上涨应该卖，但是，为了踏空，保持一个1/3的仓位
-            if self.broker.get_total_position_value() / self.broker.get_total_value() < self.position_upper:
-                logger.debug("持仓值[%.1f]比例[%1.f%%]小于资产值[%.1f]，不减仓，继续持有",
+            if self.broker.get_total_position_value() / self.broker.get_total_value() < self.position_lower:
+                logger.debug("[%s]上涨,持仓值[%.2f/%.2f元]比例[%1.f%%]<阈值[%.1f%%]，不减仓",
+                             date2str(today),
                              self.broker.get_total_position_value(),
+                             self.broker.get_total_value(),
                              self.broker.get_total_position_value() * 100 / self.broker.get_total_value(),
-                             self.broker.get_total_value())
+                             self.position_lower * 100)
                 return
             else:
-                amount = atr_times * N
-                self.broker.sell(code, next_trade_date, amount)
+                # 计算卖出份数，0.2N(仓位)*网格数
+                position = int(grid_num * 0.2 * N)
+                self.broker.sell(s_weekly_fund.code, next_trade_date, position=position)
+                logger.debug("[%s]上涨,%d个网格,卖出基金[%s]%d份",
+                             date2str(today),
+                             grid_num,
+                             s_weekly_fund.code,
+                             position)
+
         # 是下跌，应该加仓
         else:
-            # 计算出购入金额
-            amount, ratio = self.cash_distribute.calculate(sma_value, current_value=index_close)
+            # 计算出购入份数，0.2N(仓位)*网格数
+            position = int(abs(grid_num * 0.2 * N))
 
-            df_baseline.loc[today, 'signal'] = index_close * ratio  # 买信号
+            logger.debug("[%s]下跌,%d个网格,买入基金[%s]%d份",
+                         date2str(today),
+                         grid_num,
+                         s_weekly_fund.code,
+                         position)
 
             # 扣除手续费后，下取整算购买份数
-            self.broker.buy(code, next_trade_date, amount)
+            self.broker.buy(s_weekly_fund.code, next_trade_date, position=position)

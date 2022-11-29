@@ -10,20 +10,21 @@ from dingtou.grid.grid_strategy import GridStrategy
 from dingtou.backtest.utils import date2str, str2date, day2week
 from dingtou.backtest import metrics
 import matplotlib.pyplot as plt
+import mplfinance as mpf
 
 logger = logging.getLogger(__name__)
 
 
-def backtest(df_baseline: DataFrame, funds_data: dict, start_date, end_date, amount,  sma_periods):
+def backtest(df_baseline: DataFrame, funds_data: dict, start_date, end_date, amount, sma_periods=None):
     broker = Broker(amount)
     backtester = BackTester(broker, start_date, end_date)
-    backtester.set_strategy(GridStrategy(broker, GridCashDistribute(amount)))
+    backtester.set_strategy(GridStrategy(broker, amount))
     # 单独调用一个set_data，是因为里面要做特殊处理
     backtester.set_data(df_baseline, funds_data)
 
     # 运行回测！！！
     backtester.run()
-    return broker.df_values, broker
+    return broker
 
 
 def calculate_metrics(df_portfolio, df_baseline, df_fund, broker):
@@ -32,13 +33,15 @@ def calculate_metrics(df_portfolio, df_baseline, df_fund, broker):
     logger.info("\t\t基金代码：%s", df_fund.iloc[0].code)
     logger.info("\t\t基准指数：%s", df_baseline.iloc[0].code)
     logger.info("\t\t投资起始：%r", metrics.scope(df_portfolio))
-    logger.info("\t\t定投起始：%r~%r", date2str(broker.trade_history[0].target_date),
+    logger.info("\t\t定投起始：%r~%r",
+                date2str(broker.trade_history[0].target_date),
                 date2str(broker.trade_history[-1].target_date))
     logger.info("\t\t组合收益：%.1f%% \t<---", metrics.total_profit(df_portfolio, key='total_value') * 100)
     logger.info("\t\t组合年化：%.1f%% \t\t<---", metrics.annually_profit(df_portfolio, key='total_value') * 100)
     logger.info("\t\t基准收益：%.1f%%", metrics.total_profit(df_baseline) * 100)
     logger.info("\t\t基金收益：%.1f%%", metrics.total_profit(df_fund) * 100)
-    logger.info("\t\t买入次数：%.0f", len(broker.trade_history))
+    logger.info("\t\t买入次数：%.0f", len([t for t in broker.trade_history if t.action == 'buy']))
+    logger.info("\t\t卖出次数：%.0f", len([t for t in broker.trade_history if t.action == 'sell']))
     logger.info("\t\t佣金总额：%.2f", broker.total_commission)
     logger.info("\t\t期末现金：%.2f", broker.cash)
     logger.info("\t\t期末持仓：%.2f", broker.df_values.iloc[-1].total_position_value)
@@ -47,14 +50,13 @@ def calculate_metrics(df_portfolio, df_baseline, df_fund, broker):
     return df_portfolio
 
 
-
-def plot(df_baseline, df_fund, df_portfolio):
+def plot(df_baseline, df_fund, df_portfolio, df_buy_trades, df_sell_trades):
     code = df_fund.iloc[0].code
 
-    fig = plt.figure(figsize=(50, 10), dpi=(200))
+    fig, ax_baseline = plt.subplots(1, figsize=(50, 10), sharex=True)
 
     # 设置X轴
-    ax_baseline = fig.add_subplot(111)
+    # ax_baseline = fig.add_subplot(111)
     ax_baseline.grid()
     ax_baseline.set_title(f"{code}投资报告")
     # ax_baseline.set_xticks(rotation=45)
@@ -68,26 +70,48 @@ def plot(df_baseline, df_fund, df_portfolio):
 
     # 画指数和均线
     h_baseline_close, = ax_baseline.plot(df_baseline.index, df_baseline.close, 'r')
-    h_baseline_sma, = ax_baseline.plot(df_baseline.index, df_baseline.sma, color='g', linestyle='--', linewidth=0.5)
-
-    # 画买信号
-    # ax_baseline.scatter(df_baseline.index, df_baseline.long, c='r', s=10)
-    # ax_baseline.scatter(df_baseline.index, df_baseline.short, c='g', s=10)
-    ax_baseline.scatter(df_baseline.index, df_baseline.signal, marker='^', c='b', s=20)
+    # h_baseline_sma, = ax_baseline.plot(df_baseline.index, df_baseline.sma, color='g', linestyle='--', linewidth=0.5)
 
     # 设置基金Y轴
     ax_fund = ax_baseline.twinx()
     ax_fund.set_ylabel('基金', color='b')  # 设置Y轴标题
+    ax_fund.scatter(df_buy_trades.date, df_buy_trades.price, marker='^', c='r', s=20)
+    ax_fund.scatter(df_sell_trades.date, df_sell_trades.price, marker='v', c='g', s=20)
 
     # 画基金
-    h_fund, = ax_fund.plot(df_fund.index, df_fund.close, 'b')
+    # h_fund, = ax_fund.plot(df_fund.index, df_fund.close, 'b')
 
     # 画组合收益
     h_portfolio, = ax_portfolio.plot(df_portfolio.index, df_portfolio.total_value, 'c')
 
-    plt.legend(handles=[h_baseline_close, h_baseline_sma, h_fund, h_portfolio],
-               labels=['指数', '指数均线', '基金', '投资组合'],
+    plt.legend(handles=[h_baseline_close, h_portfolio],
+               labels=['指数', '投资组合'],
                loc='best')
+
+    mc = mpf.make_marketcolors(
+        up='red',
+        down='green',
+        edge='i',
+        wick='i',
+        volume='in',
+        inherit=True)
+    s = mpf.make_mpf_style(
+        gridaxis='both',
+        gridstyle='-.',
+        y_on_right=False,
+        marketcolors=mc)
+    df_fund['high'] = df_fund.close
+    df_fund['low'] = df_fund.close
+    df_fund['open'] = df_fund.close
+    df_fund_week = utils.day2week(df_fund)
+    kwargs = dict(
+        type='candle',
+        volume=False,
+        title='基金的走势',
+        ylabel='K线',
+        ylabel_lower='')#,figratio=(15, 10)
+    # mpf.plot(df_fund_week, ax=ax_fund, **kwargs)  # 简单画法
+    mpf.plot(df_fund_week, ax=ax_fund, style=s, type='candle', show_nontrading=True)
 
     # 保存图片
     fig.savefig(f"debug/{code}_report.svg", dpi=200, format='svg')
@@ -109,12 +133,13 @@ def main(code):
     # df_baseline = day2week(df_baseline)
     # df_fund = day2week(df_fund)
 
-    df_portfolio, broker = backtest(
+    broker = backtest(
         df_baseline,
         {code: df_fund},
         args.start_date,
         args.end_date,
         args.amount)
+    df_portfolio = broker.df_values
     df_portfolio.sort_values('date')
     df_portfolio.set_index('date', inplace=True)
 
@@ -123,6 +148,7 @@ def main(code):
     # 不用担心，
     start_date = str2date(args.start_date)
     end_date = str2date(args.end_date)
+
     df_baseline = df_baseline[(df_baseline.index > start_date) & (df_baseline.index < end_date)]
     df_fund = df_fund[(df_fund.index > start_date) & (df_fund.index < end_date)]
     df_portfolio = df_portfolio[(df_portfolio.index > start_date) & (df_portfolio.index < end_date)]
@@ -130,7 +156,15 @@ def main(code):
     calculate_metrics(df_portfolio, df_baseline, df_fund, broker)
 
     # 画图
-    plot(df_baseline, df_fund, df_portfolio)
+    df_buy_trades = DataFrame()
+    df_sell_trades = DataFrame()
+    for trade in broker.trade_history:
+        if trade.action == 'buy':
+            df_buy_trades = df_buy_trades.append({'date': trade.actual_date, 'price': trade.price}, ignore_index=True)
+        else:
+            df_sell_trades = df_sell_trades.append({'date': trade.actual_date, 'price': trade.price}, ignore_index=True)
+
+    plot(df_baseline, df_fund, df_portfolio, df_buy_trades, df_sell_trades)
 
 
 """
@@ -166,7 +200,7 @@ sh000852：中证1000
 
 
 # 以中证500为基准，测试基金grid投资策略
-python -m grid.grid -c 003095 -s 20180101 -e 20211201 -b sh000905 
+python -m dingtou.grid.grid -c 003095 -s 20180101 -e 20211201 -b sh000905 
 """
 if __name__ == '__main__':
     utils.init_logger()

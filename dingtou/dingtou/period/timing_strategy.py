@@ -81,5 +81,5 @@ class TimingStrategy(Strategy):
                 df_baseline.loc[today, 'signal'] = index_close * ratio  # 买信号
 
                 # 扣除手续费后，下取整算购买份数
-                self.broker.buy(fund_code, next_trade_date, amount)
+                self.broker.buy(fund_code, next_trade_date, amount=amount)
                 # share = int(amount*(1-BUY_COMMISSION_RATE) / fund_net_value)

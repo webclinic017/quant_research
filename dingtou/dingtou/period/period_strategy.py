@@ -60,4 +60,4 @@ class PeriodStrategy(Strategy):
         # 计算出购入金额
         amount = self.cash_distribute.calculate(sma_value, current_value=baseline_close)
         # 扣除手续费后，下取整算购买份数
-        self.broker.buy(fund_code, next_trade_date, amount)
+        self.broker.buy(fund_code, next_trade_date, amount=amount)

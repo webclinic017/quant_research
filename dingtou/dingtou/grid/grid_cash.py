@@ -3,24 +3,6 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-class GridCashDistribute():
-    """
-    头寸分配策略
-    """
-
-    def __init__(self, amount, periods):
-        """
-        :param amount: 总金额
-        :param periods: 投资期数（多少周）
-        :return:
-        """
-        self.amount_once = amount / periods  # 每次的最大购买金额
-        logger.info("预估会投资%d次，每次投资%.2f，总金额是%.2f", periods, self.amount_once, amount)
-
-    def calculate(self, ma_value, current_value):
-        pass
-
-
 class MACashDistribute(CashDistribute):
     def calculate(self, ma_value, current_value):
         """
