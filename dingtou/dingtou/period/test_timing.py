@@ -37,6 +37,10 @@ def calculate_metrics(df_portfolio, df_baseline, df_fund, broker):
                 date2str(broker.trade_history[-1].target_date))
     logger.info("\t\t组合收益：%.1f%% \t<---", metrics.total_profit(df_portfolio, key='total_value') * 100)
     logger.info("\t\t组合年化：%.1f%% \t\t<---", metrics.annually_profit(df_portfolio, key='total_value') * 100)
+    logger.info("\t\t夏普比率：%.2f",metrics.sharp_ratio(df_portfolio.total_value.pct_change()))
+    logger.info("\t\t索提诺比率：%.2f", metrics.sortino_ratio(df_portfolio.total_value.pct_change()))
+    logger.info("\t\t卡玛比率：%.2f", metrics.calmar_ratio(df_portfolio.total_value.pct_change()))
+    logger.info("\t\t最大回撤：%.2f%%", metrics.max_drawback(df_portfolio.total_value.pct_change())*100)
     logger.info("\t\t基准收益：%.1f%%", metrics.total_profit(df_baseline) * 100)
     logger.info("\t\t基金收益：%.1f%%", metrics.total_profit(df_fund) * 100)
     logger.info("\t\t买入次数：%.0f", len(broker.trade_history))
@@ -49,7 +53,7 @@ def calculate_metrics(df_portfolio, df_baseline, df_fund, broker):
 
 
 
-def plot(df_baseline, df_fund, df_portfolio):
+def plot(df_baseline, df_fund, df_portfolio, df_buy_trades, df_sell_trades):
     code = df_fund.iloc[0].code
 
     fig = plt.figure(figsize=(50, 10), dpi=(200))
@@ -74,7 +78,9 @@ def plot(df_baseline, df_fund, df_portfolio):
     # 画买信号
     # ax_baseline.scatter(df_baseline.index, df_baseline.long, c='r', s=10)
     # ax_baseline.scatter(df_baseline.index, df_baseline.short, c='g', s=10)
-    ax_baseline.scatter(df_baseline.index, df_baseline.signal, marker='^', c='b', s=20)
+    #ax_baseline.scatter(df_baseline.index, df_baseline.signal, marker='^', c='b', s=20)
+    ax_baseline.scatter(df_buy_trades.date, df_buy_trades.price, marker='^', c='r', s=20)
+
 
     # 设置基金Y轴
     ax_fund = ax_baseline.twinx()
@@ -132,8 +138,16 @@ def main(code):
 
     calculate_metrics(df_portfolio, df_baseline, df_fund, broker)
 
-    # 画图
-    plot(df_baseline, df_fund, df_portfolio)
+
+    df_buy_trades = DataFrame()
+    df_sell_trades = DataFrame()
+    for trade in broker.trade_history:
+        if trade.action == 'buy':
+            df_buy_trades = df_buy_trades.append({'date': trade.actual_date, 'price': trade.price}, ignore_index=True)
+        else:
+            df_sell_trades = df_sell_trades.append({'date': trade.actual_date, 'price': trade.price}, ignore_index=True)
+
+    plot(df_baseline, df_fund, df_portfolio, df_buy_trades, df_sell_trades)
 
 
 """

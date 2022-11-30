@@ -3,10 +3,10 @@ import logging
 import numpy as np
 from dateutil.relativedelta import relativedelta
 from empyrical import max_drawdown
-
+import math
 from research.utils import date2str
-
-
+from empyrical import sortino_ratio as _sortino_ratio
+from empyrical import calmar_ratio as _calmar_ratio
 
 logger = logging.getLogger(__name__)
 
@@ -17,12 +17,11 @@ def total_profit(df, key='close'):
     return (df.iloc[-1][key] - df.iloc[0][key]) / df.iloc[0][key]
 
 
-def scope(df):
-    start_date = df.index.min()
-    end_date = df.index.max()
+def scope(start_date,end_date):
     years = relativedelta(dt1=end_date, dt2=start_date).years
     months = relativedelta(dt1=end_date, dt2=start_date).months % 12
     return f"{date2str(start_date)}~{date2str(end_date)}: {years}年{months}月"
+
 
 
 def annually_profit(df, key='close'):
@@ -36,8 +35,9 @@ def annually_profit(df, key='close'):
     end_date = df.index.max()
     years = relativedelta(dt1=end_date, dt2=start_date).years
     months = relativedelta(dt1=end_date, dt2=start_date).months % 12
-    years = years + months/12
+    years = years + months / 12
     return earn ** (1 / years) - 1
+
 
 
 def volatility(df):
@@ -45,17 +45,37 @@ def volatility(df):
     return df['next_pct_chg'].std()
 
 
-def sharp_ratio(df):
+def sharp_ratio(series_pct_change, period='day'):
     """
     夏普比率 = 收益均值-无风险收益率 / 收益方差
     无风险收益率,在我国无风险收益率一般取值十年期国债收益
+    https://rich01.com/what-sharpe-ratio/
+        夏普率= [(每日報酬率平均值- 無風險利率) / (每日報酬的標準差)]x (252平方根)
+        一個好的策略，取任何一段時間的夏普率，數值不應該有巨大的落差
+         (la.mean()- 0.0285/252)/la.std()*np.sqrt(252)
     """
-    return (df['next_pct_chg'].mean() - RISK_FREE_ANNUALLY_RETRUN / 50) / df['next_pct_chg'].mean()
+    if period == 'day':
+        return (series_pct_change.mean() - RISK_FREE_ANNUALLY_RETRUN / 252) / series_pct_change.std() * math.sqrt(252)
+
+    raise ValueError(f"未实现的周期{period}")
 
 
-def max_drawback(df):
-    """最大回撤"""
-    return max_drawdown(df.next_pct_chg)
+def sortino_ratio(series_pct_change):
+    # https://blog.csdn.net/The_Time_Runner/article/details/99569365
+    return _sortino_ratio(series_pct_change)
+
+
+def calmar_ratio(series_pct_change):
+    # https://blog.csdn.net/The_Time_Runner/article/details/99569365
+    return _calmar_ratio(series_pct_change)
+
+
+def max_drawback(series_pct_change):
+    """
+    from empyrical import max_drawdown， 输入是return，而不是close，注意
+    最大回撤，https://www.yht7.com/news/30845
+    """
+    return max_drawdown(series_pct_change)
 
 
 def annually_active_return(df):

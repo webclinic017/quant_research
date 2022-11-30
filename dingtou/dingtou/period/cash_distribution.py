@@ -22,6 +22,9 @@ class CashDistribute():
 
 
 class MACashDistribute(CashDistribute):
+
+
+
     def calculate(self, ma_value, current_value):
         """
         ratio = 指数当前值 / 指数均值，
@@ -40,6 +43,17 @@ class MACashDistribute(CashDistribute):
         if ratio < 0.3: return self.amount_once * 1.5, 1.5
         # 大于30%的跌幅，就投1.5倍的配额
         return self.amount_once * 2, 2
+
+
+class MAOptimizeCashDistribute(MACashDistribute):
+    def __init__(self, amount):
+        """
+        :param amount: 总金额
+        :param periods: 投资期数（多少周）
+        :return:
+        """
+        self.amount_once = amount
+        logger.info("每次投资%.2f", self.amount_once)
 
 
 class AverageCashDistribute(CashDistribute):

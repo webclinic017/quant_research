@@ -42,8 +42,8 @@ class GridStrategy(Strategy):
     def __init__(self, broker, initial_cash_amount):
         super().__init__(broker, None)
         self.U = initial_cash_amount
-        self.position_lower = 0.3  # 最低持仓，为总值（基金市值+现金）的1/3，这个是为了收获上升通道的收益
-        self.R = 0.1  # 10%的止损
+        self.position_lower = 0.5  # 最低持仓，为总值（基金市值+现金）的1/3，这个是为了收获上升通道的收益
+        self.R = 1  # 10%的止损
 
     def set_data(self, df_baseline, funds_dict: dict):
         super().set_data(df_baseline, funds_dict)

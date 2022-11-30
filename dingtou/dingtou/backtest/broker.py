@@ -1,7 +1,7 @@
 import logging
 
 from pandas import DataFrame
-
+import numpy as np
 from research.utils import date2str
 
 logger = logging.getLogger(__name__)
@@ -57,11 +57,16 @@ class Position:
 
     def update(self, date, position, price):
         self.update_date = date
-        # 更新新成本和仓位
-        old_value = self.position * self.cost
-        new_value = old_value + position * price
-        self.position += position
-        self.cost = new_value / self.position
+
+        # 买入才更新持仓成本
+        if position>0:
+            # 更新新成本和仓位
+            old_value = self.position * self.cost
+            new_value = old_value + position * price
+            self.position += position
+            self.cost = new_value / self.position
+        else:
+            self.position += position
 
 
 class Broker:
@@ -77,6 +82,7 @@ class Broker:
         :param df_calendar:
         :param conservative:
         """
+        self.total_invest = 0 # 新增加的一个，用于记录我累计投入资金，用于计算收益率
         self.cash = cash
         self.total_commission = 0
 
@@ -85,6 +91,15 @@ class Broker:
         self.trades = []
         self.trade_history = []
         self.df_values = DataFrame()
+
+    def invest(self,cash):
+        """
+        追加投资
+        :param cash:
+        :return:
+        """
+        self.cash += cash
+        self.total_invest += cash
 
     def set_data(self, df_baseline, funds_dict: dict):
         # 基金数据，是一个dict，key是基金代码，value是dataframe
@@ -297,6 +312,7 @@ class Broker:
         市值 = sum(position_i * price_i)
         """
         total_position_value = 0
+        total_cost = 0
         for code, position in self.positions.items():
             # logger.debug("查找基金[%s] %s数据", code, date)
 
@@ -312,13 +328,17 @@ class Broker:
                 market_value = 0
 
             total_position_value += market_value
+            total_cost += position.cost
 
         total_value = total_position_value + self.cash
+        cost =  np.nan if len(self.positions)==0 else total_cost/len(self.positions)
+
         # 这个是创建（也就是插入）一行到dataframe里，也就是组合的当日市值
         self.df_values = self.df_values.append({'date': date,
                                                 'total_value': total_value,  # 总市值
                                                 'total_position_value': total_position_value,  # 总持仓价值（不含现金）
-                                                'cash': self.cash}, ignore_index=True)
+                                                'cash': self.cash,
+                                                'cost': cost}, ignore_index=True)
         # logger.debug("%s 市值 %.2f = %d只基金市值 %.2f + 持有现金 %.2f",
         #              date, total_value, len(self.positions), total_position_value, self.cash)
 
