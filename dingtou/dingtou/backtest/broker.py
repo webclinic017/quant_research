@@ -130,7 +130,6 @@ class Broker:
             logger.warning("基金[%s]没有在[%s]无数据，无法买入，只能延后", trade.code, today)
             return False
 
-        position = self.positions[trade.code]
         price = series_fund.close
 
         # 计算可以买多少份基金，是扣除了手续费的金额 / 基金当天净值，下取整
@@ -143,10 +142,10 @@ class Broker:
         # 如果卖出份数大于持仓，就只卖出所有持仓
         if position > self.positions[trade.code].position:
             logger.warning("[%s]卖出基金[%s]份数%d>持仓%d，等同于清仓",
-                           date,
+                           date2str(date),
                            trade.code,
                            position,
-                           self.positions[trade.code])
+                           self.positions[trade.code].position)
             position = self.positions[trade.code].position
 
         # 计算佣金
@@ -293,12 +292,21 @@ class Broker:
         postion：购买份数
         这俩二选一
         """
+        if self.positions.get(code, None) is None:
+            logger.warning("[%s]创建卖单失败，[%s]不在仓位重", date2str(date), code)
+            return False
+
         if position and self.positions.get(code, None) is not None and \
                 position > self.positions[code].position:
-            logger.warning("[%s]卖出[%s]的仓位[%d]>持仓[%d]", date, code, position, self.positions[code])
+            logger.warning("[%s]卖出[%s]的仓位[%d]>持仓[%d]",
+                           date2str(date),
+                           code,
+                           position,
+                           self.positions[code].position)
 
         self.trades.append(Trade(code, date, amount, position, 'sell'))
-        logger.debug("创建下个交易日[%s]卖单，卖出持仓基金 [%s] %r元/%r份", date, code, amount, position)
+        logger.debug("创建下个交易日[%s]卖单，卖出持仓基金 [%s] %r元/%r份", date2str(date), code, amount, position)
+        return True
 
     def sell_out(self, code, date):
         """清仓单"""
