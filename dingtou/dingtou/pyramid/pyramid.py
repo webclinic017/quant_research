@@ -22,14 +22,20 @@ logger = logging.getLogger(__name__)
 """
 
 
-def backtest(df_baseline: DataFrame, funds_data: dict, start_date, end_date, amount):
+def backtest(df_baseline: DataFrame,
+             funds_data: dict,
+             start_date,
+             end_date,
+             amount,
+             grid_height,
+             grid_share):
     # 上来是0元
     broker = Broker(amount)
-    broker.set_buy_commission_rate(0.0001) # 参考华宝证券：ETF手续费万1，单笔最低0.2元
+    broker.set_buy_commission_rate(0.0001)  # 参考华宝证券：ETF手续费万1，单笔最低0.2元
     broker.set_sell_commission_rate(0)
     backtester = BackTester(broker, start_date, end_date)
-    policy = PyramidPolicy()
-    strategy = PyramidStrategy(broker, policy)
+    policy = PyramidPolicy(grid_share)
+    strategy = PyramidStrategy(broker, policy, grid_height)
     backtester.set_strategy(strategy)
     # 单独调用一个set_data，是因为里面要做特殊处理
     backtester.set_data(df_baseline, funds_data)
@@ -65,7 +71,6 @@ def calculate_metrics(df_portfolio, df_baseline, df_fund, broker):
 
     logger.info("\t\t--------------------")
 
-
     start_value = args.amount
     end_value = broker.get_total_value() - broker.total_commission
     start_date = df_baseline.index.min()
@@ -79,24 +84,29 @@ def calculate_metrics(df_portfolio, df_baseline, df_fund, broker):
     logger.info("\t\t组合年化：%.1f%%",
                 annually_profit(start_value, end_value, start_date, end_date) * 100)
 
-
     logger.info("\t\t--------------------")
 
+    """
+    接下来考察，仅投资用的现金的收益率，不考虑闲置资金了
+    """
 
     # 盈利 = 总卖出现金 + 持有市值 - 总投入现金 - 佣金
     start_value = broker.total_buy_cash
-    end_value = broker.total_sell_cash + broker.get_total_value() - broker.total_commission
+    end_value = broker.total_sell_cash + \
+                broker.get_total_position_value() - \
+                broker.total_commission
     start_date = broker.trade_history[0].target_date
     end_date = broker.trade_history[-1].target_date
-    logger.info("\t\t总买入资金：%.2f", broker.total_cash)
-    logger.info("\t\t总卖出资金：%.2f", broker.df_values.iloc[-1].total_position_value)
-    logger.info("\t\t期末持仓：%.2f", broker.df_values.iloc[-1].total_position_value)
-    logger.info("\t\t期末总值：%.2f", broker.get_total_value())
-
+    logger.info("\t\t总买入资金：%.2f", broker.total_buy_cash)
+    logger.info("\t\t总卖出资金：%.2f", broker.total_sell_cash)
+    logger.info("\t\t期末持仓：%.2f", broker.get_total_position_value())
     logger.info("\t\t投资收益：%.1f元", end_value - start_value)
     logger.info("\t\t投资收益：%.1f%% \t<---投入基金的资金收益情况", (end_value / start_value - 1) * 100)
     logger.info("\t\t投资年化：%.1f%%",
                 annually_profit(start_value, end_value, start_date, end_date) * 100)
+    # 实际投入 = 2*总买入 -  最终市值 - 总卖出，资金利用率就是 = 实际投入/开始的总现金
+    actual_buy = 2 * broker.total_buy_cash - broker.get_total_position_value() - broker.total_sell_cash
+    logger.info("\t\t资金利用率：%.1f%%", (actual_buy / args.amount) * 100)
 
     logger.info("\t\t--------------------")
 
@@ -118,7 +128,6 @@ def calculate_metrics(df_portfolio, df_baseline, df_fund, broker):
     logger.info("\t\t当前持仓：%.2f份", broker.positions[df_fund.iloc[0].code].position)
     logger.info("\t\t当前价格：%.2f", df_fund.iloc[0].close)
     logger.info("\t\t佣金总额：%.2f", broker.total_commission)
-
 
     return df_portfolio
 
@@ -189,7 +198,9 @@ def main(code):
         {code: df_fund},
         args.start_date,
         args.end_date,
-        args.amount)
+        args.amount,
+        args.grid_height,
+        args.grid_share)
     df_portfolio.sort_values('date')
     df_portfolio.set_index('date', inplace=True)
 
@@ -225,6 +236,12 @@ sh000906：中证800
 sh000852：中证1000
 
 python -m dingtou.pyramid.pyramid -c 510500 -s 20180101 -e 20211201 -b sh000905
+
+python -m dingtou.pyramid.pyramid -c 510500 \
+-s 20180101 -e 20210101 -b sh000001 \
+-a 200000 -gs 2000 -gh 0.02
+
+
 """
 if __name__ == '__main__':
     utils.init_logger()
@@ -236,7 +253,9 @@ if __name__ == '__main__':
     parser.add_argument('-b', '--baseline', type=str, default=None, help="基准指数，这个策略里就是基金本身")
     parser.add_argument('-bma', '--baseline_sma', type=int, default=4, help="基准指数的移动均值周期数（目前是月线）")
     parser.add_argument('-c', '--code', type=str, help="股票代码")
-    parser.add_argument('-a', '--amount', type=int, default=500000, help="投资金额")
+    parser.add_argument('-a', '--amount', type=int, default=500000, help="投资金额，默认50万")
+    parser.add_argument('-gs', '--grid_share', type=int, default=10000, help="每网格买入份数，默认1万")
+    parser.add_argument('-gh', '--grid_height', type=float, default=0.02, help="网格高度,默认2%")
     args = parser.parse_args()
 
     if "," in args.code:

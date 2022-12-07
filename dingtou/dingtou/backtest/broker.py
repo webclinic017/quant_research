@@ -219,11 +219,12 @@ class Broker:
 
         # 现金不够这次交易了，就退出
         if buy_value + commission > self.total_cash:
-            logger.warning("[%s]无法购买基金[%s]，购买金额%.1f>现金%.0f",
+            logger.warning("[%s]无法购买基金[%s]，购买金额%.1f>现金%.0f，买单取消！",
                            date2str(today),
                            trade.code,
                            buy_value + commission,
                            self.total_cash)
+            self.trades.remove(trade)
             return False
 
         # 记录累计佣金
@@ -317,7 +318,7 @@ class Broker:
             logger.warning("创建%s日买入交易单失败：购买金额%.1f>持有现金%.1f", date2str(date), amount, self.total_cash)
             return False
         self.trades.append(Trade(code, date, amount, position, 'buy'))
-        logger.debug("创建下个交易日[%s]买单，买入基金 [%s] %r元/%r份", date2str(date), code, amount, position)
+        logger.debug("[%s]创建买单，买入基金[%s]%r元/%r份", date2str(date), code, amount, position)
         return True
 
     def sell(self, code, date, amount=None, position=None):
@@ -390,11 +391,11 @@ class Broker:
         #              date, total_value, len(self.positions), total_position_value, self.cash)
 
     def get_total_value(self):
-        """最新的总资产值"""
+        """最新的总资产值:持仓+现金"""
         return self.df_values.iloc[-1].total_value
 
     def get_total_position_value(self):
-        """最新的总仓位值"""
+        """最新的总仓位值：仅持仓"""
         return self.df_values.iloc[-1].total_position_value
 
     def set_strategy(self, strategy):

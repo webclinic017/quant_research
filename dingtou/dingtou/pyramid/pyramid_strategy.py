@@ -9,9 +9,9 @@ class PyramidStrategy(Strategy):
     """
     """
 
-    def __init__(self, broker, policy):
+    def __init__(self, broker, policy,grid_height):
         super().__init__(broker, None)
-        self.GRID_HEIGHT = 0.02  # 网格高度为1%
+        self.grid_height = grid_height  # 网格高度为1%
         self.policy = policy
 
     def set_data(self, df_baseline, funds_dict: dict):
@@ -32,15 +32,17 @@ class PyramidStrategy(Strategy):
 
         # 当前和上次位置的距离（单位是百分比）
         diff = s_daily_fund.diff_percent - self.last_grid_position
-        grid_num = abs(round(s_daily_fund.diff_percent / self.GRID_HEIGHT))
+        grid_num = abs(round(s_daily_fund.diff_percent / self.grid_height))
 
         # 如果比之前的网格低，且在均线之下，就买入
-        # -diff > self.GRID_HEIGHT：下跌多余1个网格
+        # -diff > self.grid_height：下跌多余1个网格
         if s_daily_fund.diff_percent < 0 and diff < 0 and grid_num>1:
             positions = self.policy.calculate(grid_num)
             # 扣除手续费后，下取整算购买份数
             # 追加投资
-            if self.broker.buy(s_daily_fund.code, next_trade_date, position=positions):
+            if self.broker.buy(s_daily_fund.code,
+                               next_trade_date,
+                               position=positions):
                 logger.debug(">>[%s]%s距离均线%.1f%%/%d个格,低于上次历史%.1f%%,买入%.1f份",
                              date2str(today),
                              s_daily_fund.code,
@@ -48,7 +50,7 @@ class PyramidStrategy(Strategy):
                              grid_num,
                              self.last_grid_position * 100,
                              positions)
-                self.last_grid_position = - grid_num * self.GRID_HEIGHT
+                self.last_grid_position = - grid_num * self.grid_height
 
         # 在均线之上，且，超过之前的高度(diff>0)，且，至少超过1个网格(grid_num>=1)，就卖
         if s_daily_fund.diff_percent > 0 and diff > 0 and grid_num>1:
@@ -62,5 +64,5 @@ class PyramidStrategy(Strategy):
                              grid_num,
                              self.last_grid_position * 100,
                              positions)
-                self.last_grid_position = grid_num * self.GRID_HEIGHT
+                self.last_grid_position = grid_num * self.grid_height
 

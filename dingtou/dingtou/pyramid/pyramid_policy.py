@@ -4,9 +4,9 @@ logger = logging.getLogger(__name__)
 
 
 class PyramidPolicy():
-    def __init__(self):
+    def __init__(self,grid_share):
         # 一网格买入1万份，按照中证500ETF，大约是2~3万人民币
-        self.position_per_grid = 10000
+        self.grid_share = grid_share
 
     def calculate(self, grid_num):
         """
@@ -14,4 +14,4 @@ class PyramidPolicy():
         :param diff_percent:
         :return:
         """
-        return self.position_per_grid * grid_num
+        return self.grid_share * grid_num
