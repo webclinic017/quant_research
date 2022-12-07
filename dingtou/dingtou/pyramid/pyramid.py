@@ -22,12 +22,14 @@ logger = logging.getLogger(__name__)
 """
 
 
-def backtest(df_baseline: DataFrame, funds_data: dict, start_date, end_date,amount):
+def backtest(df_baseline: DataFrame, funds_data: dict, start_date, end_date, amount):
     # 上来是0元
     broker = Broker(amount)
+    broker.set_buy_commission_rate(0.0001) # 参考华宝证券：ETF手续费万1，单笔最低0.2元
+    broker.set_sell_commission_rate(0)
     backtester = BackTester(broker, start_date, end_date)
     policy = PyramidPolicy()
-    strategy = PyramidStrategy(broker,policy)
+    strategy = PyramidStrategy(broker, policy)
     backtester.set_strategy(strategy)
     # 单独调用一个set_data，是因为里面要做特殊处理
     backtester.set_data(df_baseline, funds_data)
@@ -38,10 +40,16 @@ def backtest(df_baseline: DataFrame, funds_data: dict, start_date, end_date,amou
 
 
 def calculate_metrics(df_portfolio, df_baseline, df_fund, broker):
-    def annually_profit(df, broker):
-        earn = (broker.get_total_value() - broker.total_commission) / args.amount
-        start_date = df.index.min()
-        end_date = df.index.max()
+    def annually_profit(start_value, end_value, start_date, end_date):
+        """
+        细节：earn是一个百分比，不是收益/投入，而是终值/投入，这个是年化公式要求的，
+        所以返回的时候，最终减去了1
+        参考：https://www.pynote.net/archives/1667
+        :param earn:
+        :param broker:
+        :return:
+        """
+        earn = end_value / start_value
         years = relativedelta(dt1=end_date, dt2=start_date).years
         months = relativedelta(dt1=end_date, dt2=start_date).months % 12
         years = years + months / 12
@@ -54,27 +62,63 @@ def calculate_metrics(df_portfolio, df_baseline, df_fund, broker):
     logger.info("\t\t投资起始：%r", metrics.scope(df_portfolio.index.min(), df_portfolio.index.max()))
     logger.info("\t\t定投起始：%r",
                 metrics.scope(broker.trade_history[0].target_date, broker.trade_history[-1].target_date))
-    logger.info("\t\t组合收益：%.1f元 \t<---",
-                broker.get_total_value() - broker.total_commission - args.amount)
-    logger.info("\t\t组合收益：%.1f%% \t<---",
-                ((broker.get_total_value() - broker.total_commission) / args.amount - 1) * 100)
-    logger.info("\t\t组合年化：%.1f%% \t\t<---", annually_profit(df_portfolio, broker) * 100)
+
+    logger.info("\t\t--------------------")
+
+
+    start_value = args.amount
+    end_value = broker.get_total_value() - broker.total_commission
+    start_date = df_baseline.index.min()
+    end_date = df_baseline.index.max()
+    logger.info("\t\t期初总资金：%.2f", start_value)
+    logger.info("\t\t期末现金：%.2f", broker.total_cash)
+    logger.info("\t\t期末持仓：%.2f", broker.df_values.iloc[-1].total_position_value)
+    logger.info("\t\t期末总值：%.2f", broker.get_total_value())
+    logger.info("\t\t组合收益：%.1f元", end_value - start_value)
+    logger.info("\t\t组合收益：%.1f%% \t<---总资金的收益情况", (end_value / start_value - 1) * 100)
+    logger.info("\t\t组合年化：%.1f%%",
+                annually_profit(start_value, end_value, start_date, end_date) * 100)
+
+
+    logger.info("\t\t--------------------")
+
+
+    # 盈利 = 总卖出现金 + 持有市值 - 总投入现金 - 佣金
+    start_value = broker.total_buy_cash
+    end_value = broker.total_sell_cash + broker.get_total_value() - broker.total_commission
+    start_date = broker.trade_history[0].target_date
+    end_date = broker.trade_history[-1].target_date
+    logger.info("\t\t总买入资金：%.2f", broker.total_cash)
+    logger.info("\t\t总卖出资金：%.2f", broker.df_values.iloc[-1].total_position_value)
+    logger.info("\t\t期末持仓：%.2f", broker.df_values.iloc[-1].total_position_value)
+    logger.info("\t\t期末总值：%.2f", broker.get_total_value())
+
+    logger.info("\t\t投资收益：%.1f元", end_value - start_value)
+    logger.info("\t\t投资收益：%.1f%% \t<---投入基金的资金收益情况", (end_value / start_value - 1) * 100)
+    logger.info("\t\t投资年化：%.1f%%",
+                annually_profit(start_value, end_value, start_date, end_date) * 100)
+
+    logger.info("\t\t--------------------")
+
     logger.info("\t\t夏普比率：%.2f", metrics.sharp_ratio(df_portfolio.total_value.pct_change()))
     logger.info("\t\t索提诺比率：%.2f", metrics.sortino_ratio(df_portfolio.total_value.pct_change()))
     logger.info("\t\t卡玛比率：%.2f", metrics.calmar_ratio(df_portfolio.total_value.pct_change()))
     logger.info("\t\t最大回撤：%.2f%%", metrics.max_drawback(df_portfolio.total_value.pct_change()) * 100)
+
+    logger.info("\t\t--------------------")
+
     logger.info("\t\t基准收益：%.1f%%", metrics.total_profit(df_baseline) * 100)
-    logger.info("\t\t基金收益：%.1f%%", metrics.total_profit(df_fund) * 100)
+    logger.info("\t\t基金收益：%.1f%% \t<---基金本身收益情况", metrics.total_profit(df_fund) * 100)
+
+    logger.info("\t\t--------------------")
+
     logger.info("\t\t买入次数：%.0f", len([t for t in broker.trade_history if t.action == 'buy']))
     logger.info("\t\t卖出次数：%.0f", len([t for t in broker.trade_history if t.action == 'sell']))
     logger.info("\t\t持仓成本：%.2f", broker.positions[df_fund.iloc[0].code].cost)
     logger.info("\t\t当前持仓：%.2f份", broker.positions[df_fund.iloc[0].code].position)
     logger.info("\t\t当前价格：%.2f", df_fund.iloc[0].close)
     logger.info("\t\t佣金总额：%.2f", broker.total_commission)
-    logger.info("\t\t总投入本金：%.2f", args.amount)
-    logger.info("\t\t期末现金：%.2f", broker.cash)
-    logger.info("\t\t期末持仓：%.2f", broker.df_values.iloc[-1].total_position_value)
-    logger.info("\t\t期末总值：%.2f", broker.df_values.iloc[-1].total_value)
+
 
     return df_portfolio
 
@@ -84,26 +128,23 @@ def plot(df_baseline, df_fund, df_portfolio, df_buy_trades, df_sell_trades):
 
     fig = plt.figure(figsize=(50, 10), dpi=(200))
 
-    # 设置X轴
+    # 设置基准X轴
     ax_baseline = fig.add_subplot(111)
     ax_baseline.grid()
     ax_baseline.set_title(f"{code}投资报告")
-    # ax_baseline.set_xticks(rotation=45)
     ax_baseline.set_xlabel('日期')  # 设置x轴标题
     ax_baseline.set_ylabel('基金周线', color='r')  # 设置Y轴标题
 
-    # 设置Y轴
+    # 设置基准Y轴
     ax_portfolio = ax_baseline.twinx()  # 返回共享x轴的第二个轴
     ax_portfolio.spines['right'].set_position(('outward', 60))  # right, left, top, bottom
     ax_portfolio.set_ylabel('投资组合', color='c')  # 设置Y轴标题
 
-    # 画周线
-    h_baseline_close, = ax_baseline.plot(df_baseline.index, df_baseline.close, 'r')
-    # # 画均线
-    # h_baseline_sma, = ax_baseline.plot(df_baseline.index, df_baseline.sma, color='g', linestyle='--', linewidth=0.5)
+    # 画基准
+    # h_baseline_close, = ax_baseline.plot(df_baseline.index, df_baseline.close, 'r')
 
     # 设置基金Y轴
-    ax_fund = ax_baseline
+    ax_fund = ax_baseline.twinx()  # 返回共享x轴的第3个轴
     ax_fund.set_ylabel('基金日线', color='b')  # 设置Y轴标题
 
     # 画买卖信号
@@ -114,14 +155,15 @@ def plot(df_baseline, df_fund, df_portfolio, df_buy_trades, df_sell_trades):
 
     # 画基金
     h_fund, = ax_fund.plot(df_fund.index, df_fund.close, 'b')
+    h_fund_sma, = ax_fund.plot(df_fund.index, df_fund.sma242, color='g', linestyle='--', linewidth=0.5)
 
     # 画组合收益
     h_portfolio, = ax_portfolio.plot(df_portfolio.index, df_portfolio.total_value, 'c')
     # 画成本线
     h_cost, = ax_fund.plot(df_portfolio.index, df_portfolio.cost, 'm', linestyle='--', linewidth=0.5)
 
-    plt.legend(handles=[h_baseline_close, h_fund, h_portfolio, h_cost],
-               labels=['基金周线', '基金日线', '投资组合', '成本线'],
+    plt.legend(handles=[h_fund, h_fund_sma, h_portfolio, h_cost],
+               labels=['基金日线', '基金年线', '投资组合', '成本线'],
                loc='best')
 
     # 保存图片

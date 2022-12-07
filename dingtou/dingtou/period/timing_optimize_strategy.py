@@ -67,7 +67,7 @@ class TimingOptimizeStrategy(Strategy):
                         sell_position,
                         (current_price - cost) * sell_position,
                         self.broker.get_total_position_value(),
-                        self.broker.cash)
+                        self.broker.total_cash)
             self.broker.sell(code, next_date, amount=sell_position)
             # 要更新一下卖出获利阈值
             self.take_profit_total_percent += self.take_profit_percent

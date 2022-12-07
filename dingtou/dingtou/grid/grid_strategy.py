@@ -87,7 +87,7 @@ class GridStrategy(Strategy):
                         cost, current_price,
                         (cost - current_price) * self.broker.positions[code].position,
                         self.broker.get_total_position_value(),
-                        self.broker.cash)
+                        self.broker.total_cash)
             self.broker.sell_out(code, next_date)
             return True
 
@@ -104,7 +104,7 @@ class GridStrategy(Strategy):
         if s_daily_fund is None: return
         if self.broker.positions.get(s_daily_fund.code, None) is None:
             # 如果发现已经清仓了，重置总资金
-            self.U = self.broker.cash
+            self.U = self.broker.total_cash
         # 做风控，每天都做一次封控
         if self.risk_control(code=s_daily_fund.code, today=today, next_date=today, current_price=s_daily_fund.close):
             # 触发风控，就请清仓走人

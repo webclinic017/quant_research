@@ -45,7 +45,7 @@ def calculate_metrics(df_portfolio, df_baseline, df_fund, broker):
     logger.info("\t\t基金收益：%.1f%%", metrics.total_profit(df_fund) * 100)
     logger.info("\t\t买入次数：%.0f", len(broker.trade_history))
     logger.info("\t\t佣金总额：%.2f", broker.total_commission)
-    logger.info("\t\t期末现金：%.2f", broker.cash)
+    logger.info("\t\t期末现金：%.2f", broker.total_cash)
     logger.info("\t\t期末持仓：%.2f", broker.df_values.iloc[-1].total_position_value)
     logger.info("\t\t期末总值：%.2f", broker.df_values.iloc[-1].total_value)
 

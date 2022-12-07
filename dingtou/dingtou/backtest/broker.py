@@ -9,7 +9,6 @@ logger = logging.getLogger(__name__)
 BUY_COMMISSION_RATE = 0.015  # 买入手续费1.5%
 SELL_COMMISSION_RATE = 0.005  # 卖出手续费0.5%
 
-
 def next_trade_day(date, df_calendar):
     """
     下一个交易日
@@ -73,6 +72,12 @@ class Broker:
     """
     实现一个代理商broker的功能
     每天运行买卖就行
+
+    有几个概念：
+    - 总资金：比如说是50万，但是我不一定都投到股市里
+    - 总投入资金：就是我每次投入到股市的资金的累计
+    - 总收益资金：就是我每次卖出后的获利资金
+    - 持仓：就是我某只股票的仓位
     """
 
     def __init__(self, cash):
@@ -82,9 +87,12 @@ class Broker:
         :param df_calendar:
         :param conservative:
         """
-        self.total_invest = 0 # 新增加的一个，用于记录我累计投入资金，用于计算收益率
-        self.cash = cash
+        self.total_cash = cash
         self.total_commission = 0
+        self.total_buy_cash = 0 # 总投入资金：就是我每次投入到股市的资金的累计
+        self.total_sell_cash = 0 # 总收益资金：就是我每次卖出后的获利资金
+        self.buy_commission_rate  = BUY_COMMISSION_RATE # 买入默认的手续费
+        self.sell_commission_rate = SELL_COMMISSION_RATE  # 卖出默认的手续费
 
         # 存储数据的结构
         self.positions = {}
@@ -92,14 +100,12 @@ class Broker:
         self.trade_history = []
         self.df_values = DataFrame()
 
-    def invest(self,cash):
-        """
-        追加投资
-        :param cash:
-        :return:
-        """
-        self.cash += cash
-        self.total_invest += cash
+
+    def set_buy_commission_rate(self, commission_rate):
+        self.buy_commission_rate = commission_rate
+
+    def set_sell_commission_rate(self, commission_rate):
+        self.sell_commission_rate = commission_rate
 
     def set_data(self, df_baseline, funds_dict: dict):
         # 基金数据，是一个dict，key是基金代码，value是dataframe
@@ -109,9 +115,9 @@ class Broker:
         date = list(self.funds_dict.values())[0].iloc[0]._name
         # print("====>",date,self.cash)
         self.df_values = self.df_values.append({'date': date,
-                                                'total_value': self.cash,  # 总市值
+                                                'total_value': self.total_cash,  # 总市值
                                                 'total_position_value': 0,  # 总持仓价值（不含现金）
-                                                'cash': self.cash}, ignore_index=True)
+                                                'cash': self.total_cash}, ignore_index=True)
 
     def add_trade_history(self, trade,today,price):
         trade.actual_date = today
@@ -135,7 +141,7 @@ class Broker:
         # 计算可以买多少份基金，是扣除了手续费的金额 / 基金当天净值，下取整
         if trade.position is None:
             assert trade.amount is not None
-            position = int(trade.amount * (1 - BUY_COMMISSION_RATE) / price)
+            position = int(trade.amount * (1 - self.buy_commission_rate) / price)
         else:
             position = trade.position
 
@@ -156,6 +162,7 @@ class Broker:
         # 更新头寸,仓位,交易历史
         self.trades.remove(trade)
         self.add_trade_history(trade,date,price)
+        # 计算卖出获得现金的时候，要刨除手续费
         self.cashin(amount - commission)
 
         # 创建，或者，更新持仓
@@ -195,14 +202,14 @@ class Broker:
         # 计算可以买多少份基金，是扣除了手续费的金额 / 基金当天净值，下取整
         if trade.position is None:
             assert trade.amount is not None
-            position = int(trade.amount * (1 - BUY_COMMISSION_RATE) / series_fund.close)
+            position = int(trade.amount * (1 - self.sell_commission_rate) / series_fund.close)
         else:
             position = trade.position
 
         # 买不到任何一个整数份数，就退出
         if position == 0:
             logger.warning("资金分配失败：从总现金[%.2f]中分配给基金[%s]（价格%.2f）失败",
-                           self.cash, trade.code, price)
+                           self.total_cash, trade.code, price)
             return False
 
         # 计算要购买的价值（市值）
@@ -211,12 +218,12 @@ class Broker:
         commission = BUY_COMMISSION_RATE * buy_value  # 还要算一下佣金，因为上面下取整了
 
         # 现金不够这次交易了，就退出
-        if buy_value + commission > self.cash:
+        if buy_value + commission > self.total_cash:
             logger.warning("[%s]无法购买基金[%s]，购买金额%.1f>现金%.0f",
                            date2str(today),
                            trade.code,
                            buy_value + commission,
-                           self.cash)
+                           self.total_cash)
             return False
 
         # 记录累计佣金
@@ -232,7 +239,7 @@ class Broker:
         else:
             self.positions[trade.code] = Position(trade.code, position, price, today)
 
-        # 一种现金流出：购买的价值 + 佣金
+        # 一种现金流出：购买的价值 + 佣金，计算买入需要的现金的时候，要加上手续费
         self.cashout(buy_value + commission)
 
         logger.debug("%s以[%.2f]价格买入[%s] %d份/%.2f元,佣金[%.2f],总持仓:%.0f份",
@@ -246,14 +253,41 @@ class Broker:
         return True
 
     def cashin(self, amount):
-        old = self.cash
-        self.cash += amount
-        logger.debug("现金增加：%2.f=>%.2f,持仓变为：%.2f", old, self.cash, self.get_total_position_value())
+        """
+        卖出时候的现金增加
+        :param amount:
+        :return:
+        """
+        # 我的总现金量的变多了
+        old_total_cash = self.total_cash
+        self.total_cash += amount
+        logger.debug("我的总现金增加：%2.f=>%.2f", old_total_cash, self.total_cash)
+
+
+        # 我从股市上获利了结的总资金量增加了
+        old_total_sell_cash = self.total_sell_cash
+        self.total_sell_cash += amount
+        logger.debug("投入股市总现金：%2.f=>%.2f", old_total_sell_cash, self.total_sell_cash)
+
+        # 我的持仓市值的增加变化
+        logger.debug("我持有市值变为：%2.f份",self.get_total_position_value())
 
     def cashout(self, amount):
-        old = self.cash
-        self.cash -= amount
-        logger.debug("现金减少：%2.f=>%.2f,持仓变为：%.2f", old, self.cash, self.get_total_position_value())
+
+        # 我的总资金量的变化
+        old_total_cash = self.total_cash
+        self.total_cash -= amount
+        logger.debug("我的总现金减少：%2.f=>%.2f", old_total_cash, self.total_cash)
+
+
+        # 我从股市上获利了结的总资金量增加的变化
+        old_total_buy_cash = self.total_buy_cash
+        self.total_buy_cash += amount
+        logger.debug("投入股市总现金：%2.f=>%.2f", old_total_buy_cash, self.total_buy_cash)
+
+        # 我的持仓市值的增加变化
+        logger.debug("我持有市值变为：%2.f份",self.get_total_position_value())
+
 
     def is_in_position(self, code):
         for position_code, _ in self.positions.items():
@@ -279,8 +313,8 @@ class Broker:
         postion：购买份数
         这俩二选一
         """
-        if amount and amount > self.cash:
-            logger.warning("创建%s日买入交易单失败：购买金额%.1f>持有现金%.1f", date2str(date), amount, self.cash)
+        if amount and amount > self.total_cash:
+            logger.warning("创建%s日买入交易单失败：购买金额%.1f>持有现金%.1f", date2str(date), amount, self.total_cash)
             return False
         self.trades.append(Trade(code, date, amount, position, 'buy'))
         logger.debug("创建下个交易日[%s]买单，买入基金 [%s] %r元/%r份", date2str(date), code, amount, position)
@@ -296,13 +330,18 @@ class Broker:
             logger.warning("[%s]创建卖单失败，[%s]不在仓位重", date2str(date), code)
             return False
 
-        if position and self.positions.get(code, None) is not None and \
-                position > self.positions[code].position:
+        if self.positions[code].position == 0:
+            # logger.warning("[%s]创建卖单失败，[%s]仓位为0",date2str(date),code)
+            return False
+
+        if position and position > self.positions[code].position:
             logger.warning("[%s]卖出[%s]的仓位[%d]>持仓[%d]",
                            date2str(date),
                            code,
                            position,
                            self.positions[code].position)
+            # 超过仓位，就只卖出所有，清仓
+            position = self.positions[code].position
 
         self.trades.append(Trade(code, date, amount, position, 'sell'))
         logger.debug("创建下个交易日[%s]卖单，卖出持仓基金 [%s] %r元/%r份", date2str(date), code, amount, position)
@@ -338,14 +377,14 @@ class Broker:
             total_position_value += market_value
             total_cost += position.cost
 
-        total_value = total_position_value + self.cash
+        total_value = total_position_value + self.total_cash
         cost =  np.nan if len(self.positions)==0 else total_cost/len(self.positions)
 
         # 这个是创建（也就是插入）一行到dataframe里，也就是组合的当日市值
         self.df_values = self.df_values.append({'date': date,
                                                 'total_value': total_value,  # 总市值
                                                 'total_position_value': total_position_value,  # 总持仓价值（不含现金）
-                                                'cash': self.cash,
+                                                'cash': self.total_cash,
                                                 'cost': cost}, ignore_index=True)
         # logger.debug("%s 市值 %.2f = %d只基金市值 %.2f + 持有现金 %.2f",
         #              date, total_value, len(self.positions), total_position_value, self.cash)

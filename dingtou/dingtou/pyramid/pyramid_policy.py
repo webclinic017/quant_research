@@ -5,7 +5,8 @@ logger = logging.getLogger(__name__)
 
 class PyramidPolicy():
     def __init__(self):
-        self.position_per_grid = 20000
+        # 一网格买入1万份，按照中证500ETF，大约是2~3万人民币
+        self.position_per_grid = 10000
 
     def calculate(self, grid_num):
         """
