@@ -48,8 +48,8 @@ def calculate_metrics(df_portfolio, df_baseline, df_fund, broker):
     logger.info("\t\t基准指数：%s", df_baseline.iloc[0].code)
     logger.info("\t\t投资起始：%r", metrics.scope(df_portfolio))
     logger.info("\t\t定投起始：%r~%r",
-                date2str(broker.trade_history[0].target_date),
-                date2str(broker.trade_history[-1].target_date))
+                date2str(broker.df_trade_history[0].target_date),
+                date2str(broker.df_trade_history[-1].target_date))
     logger.info("\t\t组合收益：%.1f%% \t<---", metrics.total_profit(df_portfolio, key='total_value') * 100)
     logger.info("\t\t组合年化：%.1f%% \t\t<---", metrics.annually_profit(df_portfolio, key='total_value') * 100)
     logger.info("\t\t夏普比率：%.2f",metrics.sharp_ratio(df_portfolio.total_value.pct_change()))
@@ -58,12 +58,12 @@ def calculate_metrics(df_portfolio, df_baseline, df_fund, broker):
     logger.info("\t\t最大回撤：%.2f%%", metrics.max_drawback(df_portfolio.total_value.pct_change())*100)
     logger.info("\t\t基准收益：%.1f%%", metrics.total_profit(df_baseline) * 100)
     logger.info("\t\t基金收益：%.1f%%", metrics.total_profit(df_fund) * 100)
-    logger.info("\t\t买入次数：%.0f", len([t for t in broker.trade_history if t.action == 'buy']))
-    logger.info("\t\t卖出次数：%.0f", len([t for t in broker.trade_history if t.action == 'sell']))
+    logger.info("\t\t买入次数：%.0f", len([t for t in broker.df_trade_history if t.action == 'buy']))
+    logger.info("\t\t卖出次数：%.0f", len([t for t in broker.df_trade_history if t.action == 'sell']))
     logger.info("\t\t佣金总额：%.2f", broker.total_commission)
     logger.info("\t\t期末现金：%.2f", broker.total_cash)
-    logger.info("\t\t期末持仓：%.2f", broker.df_values.iloc[-1].total_position_value)
-    logger.info("\t\t期末总值：%.2f", broker.df_values.iloc[-1].total_value)
+    logger.info("\t\t期末持仓：%.2f", broker.df_total_market_values.iloc[-1].total_position_value)
+    logger.info("\t\t期末总值：%.2f", broker.df_total_market_values.iloc[-1].total_value)
 
     return df_portfolio
 
@@ -157,7 +157,7 @@ def main(code):
         args.start_date,
         args.end_date,
         args.amount)
-    df_portfolio = broker.df_values
+    df_portfolio = broker.df_total_market_values
     df_portfolio.sort_values('date')
     df_portfolio.set_index('date', inplace=True)
 
@@ -176,7 +176,7 @@ def main(code):
     # 画图
     df_buy_trades = DataFrame()
     df_sell_trades = DataFrame()
-    for trade in broker.trade_history:
+    for trade in broker.df_trade_history:
         if trade.action == 'buy':
             df_buy_trades = df_buy_trades.append({'date': trade.actual_date, 'price': trade.price}, ignore_index=True)
         else:

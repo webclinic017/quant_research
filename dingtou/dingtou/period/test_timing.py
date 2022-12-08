@@ -24,7 +24,7 @@ def backtest(df_baseline: DataFrame, funds_data: dict, start_date, end_date, amo
 
     # 运行回测！！！
     backtester.run()
-    return broker.df_values, broker
+    return broker.df_total_market_values, broker
 
 
 def calculate_metrics(df_portfolio, df_baseline, df_fund, broker):
@@ -33,8 +33,8 @@ def calculate_metrics(df_portfolio, df_baseline, df_fund, broker):
     logger.info("\t\t基金代码：%s", df_fund.iloc[0].code)
     logger.info("\t\t基准指数：%s", df_baseline.iloc[0].code)
     logger.info("\t\t投资起始：%r", metrics.scope(df_portfolio))
-    logger.info("\t\t定投起始：%r~%r", date2str(broker.trade_history[0].target_date),
-                date2str(broker.trade_history[-1].target_date))
+    logger.info("\t\t定投起始：%r~%r", date2str(broker.df_trade_history[0].target_date),
+                date2str(broker.df_trade_history[-1].target_date))
     logger.info("\t\t组合收益：%.1f%% \t<---", metrics.total_profit(df_portfolio, key='total_value') * 100)
     logger.info("\t\t组合年化：%.1f%% \t\t<---", metrics.annually_profit(df_portfolio, key='total_value') * 100)
     logger.info("\t\t夏普比率：%.2f",metrics.sharp_ratio(df_portfolio.total_value.pct_change()))
@@ -43,11 +43,11 @@ def calculate_metrics(df_portfolio, df_baseline, df_fund, broker):
     logger.info("\t\t最大回撤：%.2f%%", metrics.max_drawback(df_portfolio.total_value.pct_change())*100)
     logger.info("\t\t基准收益：%.1f%%", metrics.total_profit(df_baseline) * 100)
     logger.info("\t\t基金收益：%.1f%%", metrics.total_profit(df_fund) * 100)
-    logger.info("\t\t买入次数：%.0f", len(broker.trade_history))
+    logger.info("\t\t买入次数：%.0f", len(broker.df_trade_history))
     logger.info("\t\t佣金总额：%.2f", broker.total_commission)
     logger.info("\t\t期末现金：%.2f", broker.total_cash)
-    logger.info("\t\t期末持仓：%.2f", broker.df_values.iloc[-1].total_position_value)
-    logger.info("\t\t期末总值：%.2f", broker.df_values.iloc[-1].total_value)
+    logger.info("\t\t期末持仓：%.2f", broker.df_total_market_values.iloc[-1].total_position_value)
+    logger.info("\t\t期末总值：%.2f", broker.df_total_market_values.iloc[-1].total_value)
 
     return df_portfolio
 
@@ -141,7 +141,7 @@ def main(code):
 
     df_buy_trades = DataFrame()
     df_sell_trades = DataFrame()
-    for trade in broker.trade_history:
+    for trade in broker.df_trade_history:
         if trade.action == 'buy':
             df_buy_trades = df_buy_trades.append({'date': trade.actual_date, 'price': trade.price}, ignore_index=True)
         else:
