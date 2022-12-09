@@ -62,8 +62,8 @@ def calculate_metrics(df_portfolio, df_baseline, df_fund, broker):
     logger.info("\t\t卖出次数：%.0f", len([t for t in broker.df_trade_history if t.action == 'sell']))
     logger.info("\t\t佣金总额：%.2f", broker.total_commission)
     logger.info("\t\t期末现金：%.2f", broker.total_cash)
-    logger.info("\t\t期末持仓：%.2f", broker.df_total_market_values.iloc[-1].total_position_value)
-    logger.info("\t\t期末总值：%.2f", broker.df_total_market_values.iloc[-1].total_value)
+    logger.info("\t\t期末持仓：%.2f", broker.df_total_market_value.iloc[-1].total_position_value)
+    logger.info("\t\t期末总值：%.2f", broker.df_total_market_value.iloc[-1].total_value)
 
     return df_portfolio
 
@@ -157,7 +157,7 @@ def main(code):
         args.start_date,
         args.end_date,
         args.amount)
-    df_portfolio = broker.df_total_market_values
+    df_portfolio = broker.df_total_market_value
     df_portfolio.sort_values('date')
     df_portfolio.set_index('date', inplace=True)
 

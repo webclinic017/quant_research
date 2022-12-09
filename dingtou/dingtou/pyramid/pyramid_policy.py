@@ -4,14 +4,14 @@ logger = logging.getLogger(__name__)
 
 
 class PyramidPolicy():
-    def __init__(self,grid_share):
-        # 一网格买入1万份，按照中证500ETF，大约是2~3万人民币
-        self.grid_share = grid_share
+    def __init__(self,grid_share_dict):
+        # 一网格投入的资金，只是是份数，现在多只基金同时买，改为钱数
+        self.grid_share_dict = grid_share_dict
 
-    def calculate(self, grid_num):
+    def calculate(self, fund_code, grid_num):
         """
         距离均线的格子数N，2的N次方份钱
         :param diff_percent:
         :return:
         """
-        return self.grid_share * grid_num
+        return self.grid_share_dict[fund_code] * grid_num

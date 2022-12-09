@@ -37,6 +37,7 @@ def load_funds(fund_codes,ma_days):
     for fund_code in fund_codes:
         df_fund = load_fund(fund_code)
         df_fund['ma'] = talib.SMA(df_fund.close, timeperiod=ma_days)
+        df_fund['ma_net_value'] = talib.SMA(df_fund.net_value, timeperiod=ma_days)
         data[fund_code] = df_fund
     return data
 
@@ -45,9 +46,11 @@ def load_fund(fund_code):
     df_fund2 = load(fund_code, ak.fund_open_fund_info_em, fund=fund_code, indicator="单位净值走势")
     df_fund1['净值日期'] = pd.to_datetime(df_fund1['净值日期'], format='%Y-%m-%d')
     df_fund2['净值日期'] = pd.to_datetime(df_fund2['净值日期'], format='%Y-%m-%d')
-    print(df_fund1)
-    print(df_fund2)
     df_fund = df_fund1.merge(df_fund2,on='净值日期',how='inner')
+
+    # TODO: 由于拆分、分红等，导致回测严重失真，决定将单位净值，也改成累计净值
+    df_fund['单位净值'] = df_fund['累计净值']
+
     df_fund.rename(columns={'净值日期': 'date', '累计净值': 'close', '单位净值': 'net_value'}, inplace=True)
     df_fund = df_fund.set_index('date')
     df_fund['code'] = fund_code  # 都追加一个code字段

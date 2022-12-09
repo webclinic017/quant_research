@@ -40,7 +40,7 @@ def backtest(df_baseline: DataFrame, funds_data: dict, start_date, end_date,
 
     # 运行回测！！！
     backtester.run()
-    return broker.df_total_market_values, broker
+    return broker.df_total_market_value, broker
 
 
 def calculate_metrics(df_portfolio, df_baseline, df_fund, broker):
@@ -79,8 +79,8 @@ def calculate_metrics(df_portfolio, df_baseline, df_fund, broker):
     logger.info("\t\t佣金总额：%.2f", broker.total_commission)
     logger.info("\t\t总投入本金：%.2f", broker.total_invest)
     logger.info("\t\t期末现金：%.2f", broker.total_cash)
-    logger.info("\t\t期末持仓：%.2f", broker.df_total_market_values.iloc[-1].total_position_value)
-    logger.info("\t\t期末总值：%.2f", broker.df_total_market_values.iloc[-1].total_value)
+    logger.info("\t\t期末持仓：%.2f", broker.df_total_market_value.iloc[-1].total_position_value)
+    logger.info("\t\t期末总值：%.2f", broker.df_total_market_value.iloc[-1].total_value)
 
     return df_portfolio
 

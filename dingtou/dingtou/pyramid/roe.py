@@ -59,6 +59,28 @@ xn---->yn
 invest = x_0 + \sum_{i=1}^nx_i - \sum_{j=0}^{n-1}y_i
 yield = x_0 + \sum_{j=0}^{n-1}y_i - \sum_{i=1}^nx_i + y_n + stock
 
+===========================================
+
+上述算是错的，正确的是：
+x0---->y0
+x1---->y1
+x2---->y2
+.....
+xn---->yn
+算投入：只有x1-y0>0，才计入投资，x2-y1也是这样算，。。。，所以最终是 x0 + 所有(xi - y_i-1)大于0的
+算产出：只有y0-x1>0，才计入产出，y1-x2也是这样算，。。。，最终是，yn + 所有(y_i-1 - x)大于0的 + 持仓市值
+这个算法是对的，
+但是！但是！
+实现的时候，可能不是买、卖、买、卖、买、卖、买、卖，交替进行的，
+而可能是买买买、卖卖、买、卖卖卖。。。,进行的，
+这样还得合并买和卖，变成买卖交替，再走上面的算法。
+
+我靠！太烦了，放弃了。
+
+我不考察单个产品的收益了。
+
+但是，单个资金的投入，还是可以用的。
+
 <df_trade>
 {
     'code': self.code,
@@ -71,18 +93,46 @@ yield = x_0 + \sum_{j=0}^{n-1}y_i - \sum_{i=1}^nx_i + y_n + stock
 }
 """
 
-def calculate(df_trade,code,broker):
+
+def calculate(df_trade, broker, code=None):
     """
     用于计算
     :param df_trades:
     :return:
     """
-    df = df_trade[df_trade.code==code]
-    df_buy = df[df.action=='buy']
+    # 先按照时间排序
+    df = df_trade.sort_values(by='actual_date')
+
+    # 如果提供了基金代码，就是来考察这只基金的投入资金情况，否则，是整体投资的情况
+    if code: df = df[df_trade.code == code]
+
+    df_buy = df[df.action == 'buy']
     df_sell = df[df.action == 'sell']
-    buy_sum_1_n = df_buy[1:].amount.sum()
-    sell_sum_0_n_1 = df_sell[:-1].amount.sum()
-    buy_0 = df_buy[0]
-    sell_n = df_buy[-1]
+
+    if len(df_buy)==0: return 0,None,None
+    buy_0 = df_buy.iloc[0].amount
+    buy_sum_1_n = df_buy.iloc[1:].amount.sum()
+
+    if len(df_sell)==0: return buy_0+buy_sum_1_n,None,None
+    sell_n = df_sell.iloc[-1].amount
+    sell_sum_0_n_1 = df_sell.iloc[:-1].amount.sum()
+
+    # - 投入的资金是：x0 + sum(x1~xn) - sum(y0~y_n-1)
     invest = buy_0 + buy_sum_1_n - sell_sum_0_n_1
-    _yield = sell_sum_0_n_1 -  buy_sum_1_n + sell_n + broker.get_total_position_value()
+
+    # 持仓市值
+    position_value = broker.get_total_position_value()
+    if code: position_value = broker.get_position_value(code)
+
+    # - 获得产出是（不是收益）：sum(y0~y_n-1) - sum(x1~xn) + yn + stock
+    _yield = sell_sum_0_n_1 - buy_sum_1_n + sell_n + position_value
+
+
+    # 收益为
+    if invest > 0:
+        _return = (_yield - invest) / invest
+    else:
+        _return = (_yield - invest) / invest
+
+    return invest, _yield, _return # 目前只有invest在用
+
