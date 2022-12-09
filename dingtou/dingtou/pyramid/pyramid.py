@@ -8,6 +8,7 @@ from dingtou.backtest import utils
 from dingtou.backtest.backtester import BackTester
 from dingtou.backtest.broker import Broker
 from dingtou.backtest.data_loader import load_fund, load_index, load_funds
+from dingtou.backtest.stat import calculate_metrics
 from dingtou.backtest.utils import date2str, str2date
 from dingtou.backtest import metrics
 import matplotlib.pyplot as plt
@@ -47,91 +48,7 @@ def backtest(df_baseline: DataFrame,
     return broker.df_total_market_value, broker
 
 
-def calculate_metrics(df_portfolio, df_baseline, df_fund, broker,args):
-    def annually_profit(start_value, end_value, start_date, end_date):
-        """
-        细节：earn是一个百分比，不是收益/投入，而是终值/投入，这个是年化公式要求的，
-        所以返回的时候，最终减去了1
-        参考：https://www.pynote.net/archives/1667
-        :param earn:
-        :param broker:
-        :return:
-        """
-        earn = end_value / start_value
-        years = relativedelta(dt1=end_date, dt2=start_date).years
-        months = relativedelta(dt1=end_date, dt2=start_date).months % 12
-        years = years + months / 12
-        return earn ** (1 / years) - 1
-
-    # 计算各项指标
-    stat = OrderedDict()
-    stat["基金代码"] = df_fund.iloc[0].code
-    stat["基准指数"] = df_baseline.iloc[0].code
-    stat["投资起始"] = date2str(df_portfolio.index.min())
-    stat["投资结束"] = date2str(df_portfolio.index.max())
-    stat["定投起始"] = date2str(broker.df_trade_history.iloc[0].target_date)
-    stat["定投结束"] = date2str(broker.df_trade_history.iloc[-1].target_date)
-
-    start_value = args.amount
-    end_value = broker.get_total_value() - broker.total_commission
-    start_date = df_baseline.index.min()
-    end_date = df_baseline.index.max()
-    stat["期初资金"] = start_value
-    stat["期末现金"] = broker.total_cash
-    stat["期末持仓"] = broker.get_total_position_value()
-    stat["期末总值"] = broker.get_total_value()
-    stat["组合收益"] = end_value - start_value
-    stat["组合收益率"] = end_value / start_value - 1
-    stat["组合年化"] = annually_profit(start_value, end_value, start_date, end_date)
-
-    """
-    接下来考察，仅投资用的现金的收益率，不考虑闲置资金了
-    """
-
-    # 盈利 = 总卖出现金 + 持有市值 - 总投入现金 - 佣金
-
-    # 此基金本金投入
-    invest, _, _ = roe.calculate(broker.df_trade_history, broker, df_fund.iloc[0].code)
-    start_date = broker.df_trade_history.iloc[0].target_date
-    end_date = broker.df_trade_history.iloc[-1].target_date
-    stat["本金投入"] = invest
-
-    # 总本金投入
-    invest, _, _ = roe.calculate(broker.df_trade_history, broker)
-    stat["总本金"] = invest
-    stat["资金利用率"] = invest / args.amount
-
-    stat["夏普比率"] = metrics.sharp_ratio(df_portfolio.total_value.pct_change())
-    stat["索提诺比率"] = metrics.sortino_ratio(df_portfolio.total_value.pct_change())
-    stat["卡玛比率"] = metrics.calmar_ratio(df_portfolio.total_value.pct_change())
-    stat["最大回撤"] = metrics.max_drawback(df_portfolio.total_value.pct_change())
-
-    stat["基准收益"] = metrics.total_profit(df_baseline)
-    stat["基金收益"] = metrics.total_profit(df_fund)
-
-    code = df_fund.iloc[0].code
-
-    stat["买次"] = len(broker.df_trade_history[
-                               (broker.df_trade_history.code == code) &
-                               (broker.df_trade_history.action == 'buy')])
-    stat["卖次"] = len(broker.df_trade_history[
-                               (broker.df_trade_history.code == code) &
-                               (broker.df_trade_history.action == 'sell')])
-
-    stat["成本"] = -1 if broker.positions.get(code, None) is None else broker.positions[code].cost
-    stat["持仓"] = -1 if broker.positions.get(code, None) is None else broker.positions[code].position
-    stat["现价"] = df_fund.iloc[0].close
-    stat["佣金"] = broker.total_commission
-
-    # 打印，暂时注释掉
-    # for k, v in stat.items():
-    #     logger.info("{:>20s} : {}".format(k, v))
-    # logger.info("="*80)
-
-    return stat
-
-
-def plot(df_baseline, df_fund, df_portfolio, df_buy_trades, df_sell_trades,plot_file_subfix):
+def plot(df_baseline, df_fund, df_portfolio, df_buy_trades, df_sell_trades, plot_file_subfix):
     plt.clf()
     code = df_fund.iloc[0].code
     fig = plt.figure(figsize=(50, 10), dpi=(200))
@@ -222,7 +139,7 @@ def calculate_grid_values_by_statistics(fund_dict, grid_amount):
     return grid_height_dict, grid_share_dict
 
 
-def main(args,stat_file_name="debug/stat.csv",plot_file_subfix='one'):
+def main(args, stat_file_name="debug/stat.csv", plot_file_subfix='one'):
     # 加载基准指数数据（周频），如果没有设，就用基金自己；如果是sh开头，加载指数，否则，当做基金加载
     if args.baseline is None:
         df_baseline = load_fund(fund_code=args.code)
@@ -263,15 +180,15 @@ def main(args,stat_file_name="debug/stat.csv",plot_file_subfix='one'):
         df_portfolio = df_portfolio[(df_portfolio.index > start_date) & (df_portfolio.index < end_date)]
 
         if broker.positions.get(df_fund.iloc[0].code, None) is None:
-            logger.warning("基金[%s]未发生任何一笔交易",df_fund.iloc[0].code)
-        stat = calculate_metrics(df_portfolio, df_baseline, df_fund, broker,args)
+            logger.warning("基金[%s]未发生任何一笔交易", df_fund.iloc[0].code)
+        stat = calculate_metrics(df_portfolio, df_baseline, df_fund, broker, args)
         df_stat = df_stat.append(stat, ignore_index=True)
         df_buy_trades = broker.df_trade_history[
             (broker.df_trade_history.code == fund_code) & (broker.df_trade_history.action == 'buy')]
         df_sell_trades = broker.df_trade_history[
             (broker.df_trade_history.code == fund_code) & (broker.df_trade_history.action == 'sell')]
 
-        plot(df_baseline, df_fund, df_portfolio, df_buy_trades, df_sell_trades,plot_file_subfix)
+        plot(df_baseline, df_fund, df_portfolio, df_buy_trades, df_sell_trades, plot_file_subfix)
 
     with pd.option_context('display.max_rows', 100, 'display.max_columns', 100):
         from tabulate import tabulate

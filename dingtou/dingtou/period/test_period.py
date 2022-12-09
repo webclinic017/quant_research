@@ -1,12 +1,17 @@
 import argparse
 import logging
+from collections import OrderedDict
+
+from dateutil.relativedelta import relativedelta
 from pandas import DataFrame
 
 from dingtou.backtest import utils
 from dingtou.backtest.backtester import BackTester
 from dingtou.backtest.broker import Broker
 from dingtou.backtest.data_loader import load_index,load_fund
+from dingtou.backtest.stat import calculate_metrics
 from dingtou.period.period_strategy import PeriodStrategy
+from dingtou.pyramid import roe
 from research.utils import date2str, str2date, day2week
 
 from dingtou.period.cash_distribution import AverageCashDistribute
@@ -30,29 +35,6 @@ def backtest(df_baseline: DataFrame, funds_data: dict, start_date, end_date, amo
     return broker.df_total_market_value, broker
 
 
-def calculate_metrics(df_portfolio, df_baseline, df_fund, broker):
-    # 计算各项指标
-    logger.info("\t交易统计：")
-    logger.info("\t\t基金代码：%s", df_fund.iloc[0].code)
-    logger.info("\t\t基准指数：%s", df_baseline.iloc[0].code)
-    logger.info("\t\t投资起始：%r", metrics.scope(df_portfolio))
-    logger.info("\t\t定投起始：%r~%r", date2str(broker.df_trade_history[0].target_date),
-                date2str(broker.df_trade_history[-1].target_date))
-    logger.info("\t\t组合收益：%.1f%% \t<---", metrics.total_profit(df_portfolio, key='total_value') * 100)
-    logger.info("\t\t组合年化：%.1f%% \t\t<---", metrics.annually_profit(df_portfolio, key='total_value') * 100)
-    logger.info("\t\t夏普比率：%.2f",metrics.sharp_ratio(df_portfolio.total_value.pct_change()))
-    logger.info("\t\t索提诺比率：%.2f", metrics.sortino_ratio(df_portfolio.total_value.pct_change()))
-    logger.info("\t\t卡玛比率：%.2f", metrics.calmar_ratio(df_portfolio.total_value.pct_change()))
-    logger.info("\t\t最大回撤：%.2f%%", metrics.max_drawback(df_portfolio.total_value.pct_change())*100)
-    logger.info("\t\t基准收益：%.1f%%", metrics.total_profit(df_baseline) * 100)
-    logger.info("\t\t基金收益：%.1f%%", metrics.total_profit(df_fund) * 100)
-    logger.info("\t\t买入次数：%.0f", len(broker.df_trade_history))
-    logger.info("\t\t佣金总额：%.2f", broker.total_commission)
-    logger.info("\t\t期末现金：%.2f", broker.total_cash)
-    logger.info("\t\t期末持仓：%.2f", broker.df_total_market_value.iloc[-1].total_position_value)
-    logger.info("\t\t期末总值：%.2f", broker.df_total_market_value.iloc[-1].total_value)
-
-    return df_portfolio
 
 
 def plot(df_baseline, df_fund, df_portfolio):
@@ -134,7 +116,7 @@ def main(code):
     df_fund = df_fund[(df_fund.index > start_date) & (df_fund.index < end_date)]
     df_portfolio = df_portfolio[(df_portfolio.index > start_date) & (df_portfolio.index < end_date)]
 
-    calculate_metrics(df_portfolio, df_baseline, df_fund, broker)
+    calculate_metrics(df_portfolio, df_baseline, df_fund, broker,args)
 
     # 画图
     plot(df_baseline, df_fund, df_portfolio)
@@ -171,7 +153,7 @@ sh000852：中证1000
 000689	前海开源新经济灵活配置混合A
 
 # 完全定投
-python -m dingtou.period.test_period -c 003095 -s 20180101 -e 20211201 -b 003095 -p 150
+ python -m dingtou.period.test_period -c 003095 -s 20180101 -e 20211201 -b sh000905 -p 200 -a 200000
 
 测试2：
     这个基金不做择时了，就是定投

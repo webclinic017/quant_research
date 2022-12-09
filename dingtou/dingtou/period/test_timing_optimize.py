@@ -1,5 +1,6 @@
 import argparse
 import logging
+from collections import OrderedDict
 
 from dateutil.relativedelta import relativedelta
 from pandas import DataFrame
@@ -8,11 +9,14 @@ from dingtou.backtest import utils
 from dingtou.backtest.backtester import BackTester
 from dingtou.backtest.broker import Broker
 from dingtou.backtest.data_loader import load_fund, load_index
+from dingtou.backtest.stat import calculate_metrics
 from dingtou.period.cash_distribution import MAOptimizeCashDistribute
 from dingtou.backtest.utils import date2str, str2date, day2week
 from dingtou.period.timing_optimize_strategy import TimingOptimizeStrategy
 from dingtou.backtest import metrics
 import matplotlib.pyplot as plt
+
+from dingtou.pyramid import roe
 
 logger = logging.getLogger(__name__)
 
@@ -43,46 +47,6 @@ def backtest(df_baseline: DataFrame, funds_data: dict, start_date, end_date,
     return broker.df_total_market_value, broker
 
 
-def calculate_metrics(df_portfolio, df_baseline, df_fund, broker):
-    def annually_profit(df, broker):
-        earn = (broker.get_total_value() - broker.total_commission) / broker.total_invest
-        start_date = df.index.min()
-        end_date = df.index.max()
-        years = relativedelta(dt1=end_date, dt2=start_date).years
-        months = relativedelta(dt1=end_date, dt2=start_date).months % 12
-        years = years + months / 12
-        return earn ** (1 / years) - 1
-
-    # 计算各项指标
-    logger.info("\t交易统计：")
-    logger.info("\t\t基金代码：%s", df_fund.iloc[0].code)
-    logger.info("\t\t基准指数：%s", df_baseline.iloc[0].code)
-    logger.info("\t\t投资起始：%r", metrics.scope(df_portfolio.index.min(), df_portfolio.index.max()))
-    logger.info("\t\t定投起始：%r",
-                metrics.scope(broker.df_trade_history[0].target_date, broker.df_trade_history[-1].target_date))
-    logger.info("\t\t组合收益：%.1f元 \t<---",
-                broker.get_total_value() - broker.total_commission - broker.total_invest)
-    logger.info("\t\t组合收益：%.1f%% \t<---",
-                ((broker.get_total_value() - broker.total_commission) / broker.total_invest - 1) * 100)
-    logger.info("\t\t组合年化：%.1f%% \t\t<---", annually_profit(df_portfolio, broker) * 100)
-    logger.info("\t\t夏普比率：%.2f", metrics.sharp_ratio(df_portfolio.total_value.pct_change()))
-    logger.info("\t\t索提诺比率：%.2f", metrics.sortino_ratio(df_portfolio.total_value.pct_change()))
-    logger.info("\t\t卡玛比率：%.2f", metrics.calmar_ratio(df_portfolio.total_value.pct_change()))
-    logger.info("\t\t最大回撤：%.2f%%", metrics.max_drawback(df_portfolio.total_value.pct_change()) * 100)
-    logger.info("\t\t基准收益：%.1f%%", metrics.total_profit(df_baseline) * 100)
-    logger.info("\t\t基金收益：%.1f%%", metrics.total_profit(df_fund) * 100)
-    logger.info("\t\t买入次数：%.0f", len([t for t in broker.df_trade_history if t.action == 'buy']))
-    logger.info("\t\t卖出次数：%.0f", len([t for t in broker.df_trade_history if t.action == 'sell']))
-    logger.info("\t\t持仓成本：%.2f", broker.positions[df_fund.iloc[0].code].cost)
-    logger.info("\t\t当前持仓：%.2f份", broker.positions[df_fund.iloc[0].code].position)
-    logger.info("\t\t当前价格：%.2f", df_fund.iloc[0].close)
-    logger.info("\t\t佣金总额：%.2f", broker.total_commission)
-    logger.info("\t\t总投入本金：%.2f", broker.total_invest)
-    logger.info("\t\t期末现金：%.2f", broker.total_cash)
-    logger.info("\t\t期末持仓：%.2f", broker.df_total_market_value.iloc[-1].total_position_value)
-    logger.info("\t\t期末总值：%.2f", broker.df_total_market_value.iloc[-1].total_value)
-
-    return df_portfolio
 
 
 def plot(df_baseline, df_fund, df_portfolio, df_buy_trades, df_sell_trades):
@@ -113,10 +77,10 @@ def plot(df_baseline, df_fund, df_portfolio, df_buy_trades, df_sell_trades):
     ax_fund.set_ylabel('基金日线', color='b')  # 设置Y轴标题
 
     # 画买卖信号
-    ax_fund.scatter(df_buy_trades.date, df_buy_trades.price, marker='^', c='r', s=40)
+    ax_fund.scatter(df_buy_trades.actual_date, df_buy_trades.price, marker='^', c='r', s=40)
     # 不一定有卖
     if len(df_sell_trades) > 0:
-        ax_fund.scatter(df_sell_trades.date, df_sell_trades.price, marker='v', c='g', s=40)
+        ax_fund.scatter(df_sell_trades.actual_date, df_sell_trades.price, marker='v', c='g', s=40)
 
     # 画基金
     h_fund, = ax_fund.plot(df_fund.index, df_fund.close, 'b')
@@ -172,15 +136,12 @@ def main(code):
     df_fund = df_fund[(df_fund.index > start_date) & (df_fund.index < end_date)]
     df_portfolio = df_portfolio[(df_portfolio.index > start_date) & (df_portfolio.index < end_date)]
 
-    calculate_metrics(df_portfolio, df_baseline, df_fund, broker)
+    calculate_metrics(df_portfolio, df_baseline, df_fund, broker,args)
 
-    df_buy_trades = DataFrame()
-    df_sell_trades = DataFrame()
-    for trade in broker.df_trade_history:
-        if trade.action == 'buy':
-            df_buy_trades = df_buy_trades.append({'date': trade.actual_date, 'price': trade.price}, ignore_index=True)
-        else:
-            df_sell_trades = df_sell_trades.append({'date': trade.actual_date, 'price': trade.price}, ignore_index=True)
+    df_buy_trades = broker.df_trade_history[
+        (broker.df_trade_history.code == args.code) & (broker.df_trade_history.action == 'buy')]
+    df_sell_trades = broker.df_trade_history[
+        (broker.df_trade_history.code == args.code) & (broker.df_trade_history.action == 'sell')]
 
     plot(df_baseline, df_fund, df_portfolio, df_buy_trades, df_sell_trades)
 

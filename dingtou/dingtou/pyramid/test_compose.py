@@ -15,8 +15,8 @@ class AttributeDict(dict):
 if __name__ == '__main__':
     utils.init_logger()
     args = AttributeDict()
-    args.start_date = '20210217'
-    args.end_date = '20230101'
+    args.start_date = '20180217'
+    args.end_date = '20210101'
     args.amount = 200000
     args.baseline = 'sh000001'
     args.grid_amount = 1000

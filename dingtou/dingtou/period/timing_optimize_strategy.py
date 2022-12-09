@@ -2,9 +2,10 @@ import numpy as np
 import talib
 import logging
 from dingtou.backtest.strategy import Strategy
-from dingtou.backtest.utils import get_value, fit,date2str
+from dingtou.backtest.utils import get_value, fit, date2str
 
 logger = logging.getLogger(__name__)
+
 
 class TimingOptimizeStrategy(Strategy):
     """
@@ -16,9 +17,9 @@ class TimingOptimizeStrategy(Strategy):
 
     """
 
-    def __init__(self, broker, periods,cash_distribute, sma_periods, take_profit_percent, sell_percent_once):
+    def __init__(self, broker, periods, cash_distribute, sma_periods, take_profit_percent, sell_percent_once):
         super().__init__(broker, cash_distribute)
-        self.periods = periods # 总共的投资周期，超过这个就停止定投了
+        self.periods = periods  # 总共的投资周期，超过这个就停止定投了
         self.sma_periods = sma_periods
         # 止盈比例，就是到达这个百分比收益就卖出一部分
         self.take_profit_percent = take_profit_percent
@@ -83,7 +84,6 @@ class TimingOptimizeStrategy(Strategy):
         s_baseline = get_value(df_baseline, today)
         s_fund = get_value(df_fund, today)
 
-
         # 获得指数收盘价
         index_close = None if s_baseline is None else s_baseline.close
         # 获得移动均线值
@@ -104,13 +104,11 @@ class TimingOptimizeStrategy(Strategy):
         else:
             # 如果已经超过投资周期了
             if self.current_periods > self.periods:
-                logger.info("[%s]已经超过投资周期[%d]，不再投资",date2str(today),self.periods)
+                logger.info("[%s]已经超过投资周期[%d]，不再投资", date2str(today), self.periods)
                 return
             else:
                 # 更新当前的投资周期
-                self.current_periods+=1
-
-
+                self.current_periods += 1
 
         df_last_4_index = df_baseline.iloc[df_baseline.index.get_loc(today) - 3:df_baseline.index.get_loc(today) + 1]
 
@@ -138,8 +136,8 @@ class TimingOptimizeStrategy(Strategy):
 
                 df_baseline.loc[today, 'signal'] = index_close * ratio  # 买信号
 
-                # 追加投资
-                self.broker.invest(amount)
+                # 追加投资,TODO: hack做法
+                self.broker.total_cash += amount
                 # 扣除手续费后，下取整算购买份数
                 self.broker.buy(fund_code, next_trade_date, amount=amount)
                 # share = int(amount*(1-BUY_COMMISSION_RATE) / fund_net_value)
