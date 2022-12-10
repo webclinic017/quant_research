@@ -99,7 +99,7 @@ class Broker:
             logger.warning("基金[%s]没有在[%s]无数据，无法买入，只能延后", trade.code, date)
             return False
 
-        price = series_fund.net_value
+        price = series_fund.close
 
         # 计算可以买多少份基金，是扣除了手续费的金额 / 基金当天净值，下取整
         if trade.position is None:
@@ -175,7 +175,7 @@ class Broker:
             position = trade.position
 
         # 计算要购买的价值（市值）
-        price = series_fund.net_value
+        price = series_fund.close
         buy_value = position * price
         commission = self.buy_commission_rate * buy_value  # 还要算一下佣金，因为上面下取整了
 
@@ -188,7 +188,7 @@ class Broker:
             position = math.floor(position)
             buy_value = position*price
             commission = self.buy_commission_rate * buy_value  # 还要算一下佣金，因为上面下取整了
-            logger.warning("[%s]购买基金[%s]，购买金额%.1f>现金%.0f，调整购买金额为%.1f,佣金%.1f,剩余现金%.1f",
+            logger.warning("[%s]购买基金[%s]，购买金额%.1f>现金%.2f，调整购买金额为%.1f,佣金%.1f,剩余现金%.1f",
                            date2str(today),
                            trade.code,
                            original_buy,
@@ -200,7 +200,9 @@ class Broker:
         # 买不到任何一个整数份数，就退出
         if position == 0:
             logger.warning("资金分配失败：从总现金[%.2f]中分配给基金[%s]（价格%.2f）失败",
-                           self.total_cash, trade.code, series_fund.net_value)
+                           self.total_cash, trade.code, series_fund.close)
+            # 这笔交易就放弃了
+            self.trades.remove(trade)
             return False
 
         # 记录累计佣金
@@ -377,7 +379,7 @@ class Broker:
         # 获得此基金的当日价格
         try:
             series_fund = df_fund_daily.loc[date]
-            price = series_fund.net_value
+            price = series_fund.close
             # logger.debug(" %s 日基金 %s 的数据，市值%.1f = 价格%.1f * 持仓%.1f ",
             #              date, code, market_value, series_fund.net_value, position.position)
         except KeyError:

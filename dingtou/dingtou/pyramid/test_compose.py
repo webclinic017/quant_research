@@ -20,7 +20,9 @@ if __name__ == '__main__':
     args.amount = 200000
     args.baseline = 'sh000001'
     args.grid_amount = 1000
+    args.grid_num = 10
     args.ma = 242
+    args.type = 'fund'
     args.code = "510310,510560,512000,512010,512040,512070,512330,512480,512560,512600"
     df = main(args,stat_file_name = "debug/stat_compose.csv",plot_file_subfix='compose')
 

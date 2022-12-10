@@ -18,9 +18,11 @@ if __name__ == '__main__':
     args.start_date = '20190101'
     args.end_date = '20220101'
     args.amount = 200000
+    args.grid_num = 10
     args.baseline = 'sh000001'
     args.grid_amount = 2000
     args.ma = 242
+    args.type = 'fund'
     funds = ["510310","510560","512000","512010","512040","512070","512330","512480","512560","512600"]
     df = DataFrame()
     for fund_code in funds:

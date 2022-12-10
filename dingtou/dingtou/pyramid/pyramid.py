@@ -1,20 +1,16 @@
 import argparse
 import logging
 
-from dateutil.relativedelta import relativedelta
-from pandas import DataFrame
+import matplotlib.pyplot as plt
 import pandas as pd
+from pandas import DataFrame
+
 from dingtou.backtest import utils
 from dingtou.backtest.backtester import BackTester
 from dingtou.backtest.broker import Broker
-from dingtou.backtest.data_loader import load_fund, load_index, load_funds
+from dingtou.backtest.data_loader import load_fund, load_index, load_funds, load_stocks
 from dingtou.backtest.stat import calculate_metrics
-from dingtou.backtest.utils import date2str, str2date
-from dingtou.backtest import metrics
-import matplotlib.pyplot as plt
-from collections import OrderedDict
-
-from dingtou.pyramid import roe
+from dingtou.backtest.utils import str2date
 from dingtou.pyramid.pyramid_policy import PyramidPolicy
 from dingtou.pyramid.pyramid_strategy import PyramidStrategy
 
@@ -66,16 +62,9 @@ def plot(df_baseline, df_fund, df_portfolio, df_buy_trades, df_sell_trades, plot
 
     # 设置单位净值Y轴
     ax_fund = ax_baseline.twinx()  # 返回共享x轴的第3个轴
-    ax_fund.set_ylabel('单位净值', color='b')  # 设置Y轴标题
+    # ax_fund.set_ylabel('单位净值', color='b')  # 设置Y轴标题
     # 画单位净值日线
-    h_fund, = ax_fund.plot(df_fund.index, df_fund.net_value, 'b', linewidth=2)
-    # 画买卖信号
-    ax_fund.scatter(df_buy_trades.actual_date, df_buy_trades.price, marker='^', c='r', s=40)
-    # 不一定有卖
-    if len(df_sell_trades) > 0:
-        ax_fund.scatter(df_sell_trades.actual_date, df_sell_trades.price, marker='v', c='g', s=40)
-    # 画成我持仓成本线
-    h_cost, = ax_fund.plot(df_portfolio.index, df_portfolio.cost, 'm', linestyle='--', linewidth=0.5)
+    # h_fund, = ax_fund.plot(df_fund.index, df_fund.close, 'b', linewidth=2)
 
     # --------------------------------------------------------
 
@@ -83,9 +72,16 @@ def plot(df_baseline, df_fund, df_portfolio, df_buy_trades, df_sell_trades, plot
     ax_fund_accumulate = ax_baseline.twinx()  # 返回共享x轴的第3个轴
     ax_fund_accumulate.set_ylabel('累计净值', color='g')  # 设置Y轴标题
     ax_fund_accumulate.spines['right'].set_position(('outward', 60))  # right, left, top, bottom
-    h_fund_accumulate, = ax_fund_accumulate.plot(df_fund.index, df_fund.close, 'g', linewidth=1)
+    h_fund_accumulate, = ax_fund_accumulate.plot(df_fund.index, df_fund.close, 'b', linewidth=2)
     # 画累计净值基金均线
-    h_fund_sma, = ax_fund_accumulate.plot(df_fund.index, df_fund.ma, color='g', linestyle='--', linewidth=0.5)
+    h_fund_sma, = ax_fund_accumulate.plot(df_fund.index, df_fund.ma, color='g', linestyle='--', linewidth=1)
+    # 画买卖信号
+    ax_fund_accumulate.scatter(df_buy_trades.actual_date, df_buy_trades.price, marker='^', c='r', s=40)
+    # 不一定有卖
+    if len(df_sell_trades) > 0:
+        ax_fund_accumulate.scatter(df_sell_trades.actual_date, df_sell_trades.price, marker='v', c='g', s=40)
+    # 画成我持仓成本线
+    h_cost, = ax_fund_accumulate.plot(df_portfolio.index, df_portfolio.cost, 'm', linestyle='--', linewidth=0.5)
 
     # --------------------------------------------------------
 
@@ -97,15 +93,15 @@ def plot(df_baseline, df_fund, df_portfolio, df_buy_trades, df_sell_trades, plot
     # 画组合收益
     h_portfolio, = ax_portfolio.plot(df_portfolio.index, df_portfolio.total_value, 'r')  # 'c'
 
-    plt.legend(handles=[h_fund, h_portfolio, h_cost, h_fund_accumulate, h_fund_sma],
-               labels=['单位净值', '投资组合', '成本线', '累计净值', '累计净值均线'],
+    plt.legend(handles=[h_portfolio, h_cost, h_fund_accumulate, h_fund_sma],
+               labels=['投资组合', '成本线', '累计净值', '累计净值均线'],
                loc='best')
 
     # 保存图片
     fig.savefig(f"debug/{code}_report_{plot_file_subfix}.svg", dpi=200, format='svg')
 
 
-def calculate_grid_values_by_statistics(fund_dict, grid_amount):
+def calculate_grid_values_by_statistics(fund_dict, grid_amount, grid_num):
     """
     返回各个基金的格子高度，和，格子最基础的买入份数
     :param fund_dict:
@@ -114,7 +110,7 @@ def calculate_grid_values_by_statistics(fund_dict, grid_amount):
     """
     grid_height_dict = {}
     grid_share_dict = {}
-    for fund_code, df_fund in fund_dict.items():
+    for code, df_fund in fund_dict.items():
         # 乖离率
         df_fund['diff_percent'] = (df_fund.close - df_fund.ma) / df_fund.ma
         # 超过MA的80%的分位数
@@ -122,11 +118,11 @@ def calculate_grid_values_by_statistics(fund_dict, grid_amount):
         # 低于MA的80%的分位数
         negative = df_fund[df_fund.diff_percent < 0].diff_percent.quantile(0.2)
         # 上下分为20个格子
-        grid_height = max(positive, -negative) / 10
+        grid_height = max(positive, -negative) / grid_num
         logger.debug("网格高度为：%.2f%%", grid_height * 100)
-        grid_height_dict[fund_code] = grid_height
+        grid_height_dict[code] = grid_height
 
-        grid_share_dict[fund_code] = int(grid_amount / df_fund.iloc[-1].ma_net_value)
+        grid_share_dict[code] = int(grid_amount / df_fund.iloc[-1].close)
         logger.debug("找出基金[%s]和移动均线偏离80%%的收益率边界值为：[%.1f%%~%.1f%%]",
                      df_fund.iloc[0].code,
                      positive * 100,
@@ -134,7 +130,7 @@ def calculate_grid_values_by_statistics(fund_dict, grid_amount):
         logger.debug("按照基金[%s]最新的净值均值，设定的购买金额[%.1f]，可以买入网格基准份数[%.0f]份",
                      df_fund.iloc[0].code,
                      grid_amount,
-                     grid_share_dict[fund_code])
+                     grid_share_dict[code])
 
     return grid_height_dict, grid_share_dict
 
@@ -142,16 +138,20 @@ def calculate_grid_values_by_statistics(fund_dict, grid_amount):
 def main(args, stat_file_name="debug/stat.csv", plot_file_subfix='one'):
     # 加载基准指数数据（周频），如果没有设，就用基金自己；如果是sh开头，加载指数，否则，当做基金加载
     if args.baseline is None:
-        df_baseline = load_fund(fund_code=args.code)
+        df_baseline = load_fund(code=args.code)
     elif "sh" in args.baseline:
         df_baseline = load_index(index_code=args.baseline)
     else:
-        df_baseline = load_fund(fund_code=args.baseline)
+        df_baseline = load_fund(code=args.baseline)
 
     # 加载基金数据，标准化列名，close是为了和标准的指数的close看齐
-    fund_dict = load_funds(fund_codes=args.code.split(","), ma_days=args.ma)
 
-    grid_height_dict, grid_share_dict = calculate_grid_values_by_statistics(fund_dict, args.grid_amount)
+    if args.type == 'fund':
+        fund_dict = load_funds(codes=args.code.split(","), ma_days=args.ma)
+    else:
+        fund_dict = load_stocks(codes=args.code.split(","), ma_days=args.ma)
+
+    grid_height_dict, grid_share_dict = calculate_grid_values_by_statistics(fund_dict, args.grid_amount, args.grid_num)
 
     # 思来想去，还是分开了baseline和funds（支持多只）的数据
 
@@ -175,7 +175,7 @@ def main(args, stat_file_name="debug/stat.csv", plot_file_subfix='one'):
     df_baseline = df_baseline[(df_baseline.index > start_date) & (df_baseline.index < end_date)]
 
     df_stat = DataFrame()
-    for fund_code, df_fund in fund_dict.items():
+    for code, df_fund in fund_dict.items():
         df_fund = df_fund[(df_fund.index > start_date) & (df_fund.index < end_date)]
         df_portfolio = df_portfolio[(df_portfolio.index > start_date) & (df_portfolio.index < end_date)]
 
@@ -184,9 +184,9 @@ def main(args, stat_file_name="debug/stat.csv", plot_file_subfix='one'):
         stat = calculate_metrics(df_portfolio, df_baseline, df_fund, broker, args)
         df_stat = df_stat.append(stat, ignore_index=True)
         df_buy_trades = broker.df_trade_history[
-            (broker.df_trade_history.code == fund_code) & (broker.df_trade_history.action == 'buy')]
+            (broker.df_trade_history.code == code) & (broker.df_trade_history.action == 'buy')]
         df_sell_trades = broker.df_trade_history[
-            (broker.df_trade_history.code == fund_code) & (broker.df_trade_history.action == 'sell')]
+            (broker.df_trade_history.code == code) & (broker.df_trade_history.action == 'sell')]
 
         plot(df_baseline, df_fund, df_portfolio, df_buy_trades, df_sell_trades, plot_file_subfix)
 
@@ -225,6 +225,17 @@ python -m dingtou.pyramid.pyramid \
 -e 20210101 \
 -b sh000001 \
 -a 200000 
+
+
+python -m dingtou.pyramid.pyramid \ 
+-c 002583 \
+-t stock \
+-s 20180101 \
+-e 20210101 \
+-b sh000001 \
+-a 200000 \
+-ga 2000
+
 """
 if __name__ == '__main__':
     utils.init_logger()
@@ -237,8 +248,9 @@ if __name__ == '__main__':
     parser.add_argument('-m', '--ma', type=int, default=240, help="基金的移动均值")
     parser.add_argument('-c', '--code', type=str, help="股票代码")
     parser.add_argument('-a', '--amount', type=int, default=500000, help="投资金额，默认50万")
+    parser.add_argument('-t', '--type', type=str, default='fund', help="fund|stock")
     parser.add_argument('-ga', '--grid_amount', type=int, default=1000, help="每网格买入份数，默认1万")
-    parser.add_argument('-gh', '--grid_height', type=float, default=0.02, help="网格高度,默认2%")
+    parser.add_argument('-gn', '--grid_num', type=int, default=10, help="格子的数量")
     args = parser.parse_args()
-
+    logger.info(args)
     main(args)
