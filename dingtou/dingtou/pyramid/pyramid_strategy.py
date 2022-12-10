@@ -11,17 +11,18 @@ class PyramidStrategy(Strategy):
     """
     """
 
-    def __init__(self, broker, policy, grid_height_dict):
+    def __init__(self, broker, policy, up_grid_height_dict, down_grid_height_dict):
         super().__init__(broker, None)
-        self.grid_height_dict = grid_height_dict  # 网格高度为1%
+        self.up_grid_height_dict = up_grid_height_dict  # 上涨时候网格高度
+        self.down_grid_height_dict = down_grid_height_dict  # 下跌网格高度
         self.policy = policy
         self.last_grid_position_dict = {}
 
     def set_data(self, df_baseline, funds_dict: dict):
         super().set_data(df_baseline, funds_dict)
-        df_daily_fund = list(self.funds_dict.values())[0]
-        df_daily_fund['sma242'] = talib.SMA(df_daily_fund.close, timeperiod=242)
-        df_daily_fund['diff_percent'] = (df_daily_fund.close - df_daily_fund.sma242) / df_daily_fund.sma242
+        for code, df_daily_fund in funds_dict.items():
+            df_daily_fund['sma242'] = talib.SMA(df_daily_fund.close, timeperiod=242)
+            df_daily_fund['diff_percent_close2ma'] = (df_daily_fund.close - df_daily_fund.sma242) / df_daily_fund.sma242
         for fund_code in funds_dict.keys():
             self.last_grid_position_dict[fund_code] = 0
 
@@ -44,15 +45,17 @@ class PyramidStrategy(Strategy):
         # 先看日数据：1、止损 2、
         s_daily_fund = get_value(df_daily_fund, today)
         if s_daily_fund is None: return
-        if pd.isna(s_daily_fund.diff_percent): return
+        if pd.isna(s_daily_fund.diff_percent_close2ma): return
 
         # 当前和上次位置的距离（单位是百分比）
-        diff = s_daily_fund.diff_percent - self.last_grid_position_dict[s_daily_fund.code]
-        grid_num = abs(round(s_daily_fund.diff_percent / self.grid_height_dict[s_daily_fund.code]))
+        diff2last = s_daily_fund.diff_percent_close2ma - self.last_grid_position_dict[s_daily_fund.code]
 
-        # 如果比之前的网格低，且在均线之下，就买入
-        # -diff > self.grid_height_dict：下跌多余1个网格
-        if s_daily_fund.diff_percent < 0 and diff < 0 and grid_num > 1:
+        # 如果比之前的网格低"至少1个格子"，且在均线之下，就买入
+        if s_daily_fund.diff_percent_close2ma < 0 and \
+                diff2last < 0 and \
+                abs(diff2last / self.down_grid_height_dict[s_daily_fund.code]) >= 1:
+            # 计算这次下跌，距离均线的网格数
+            grid_num = abs(round(s_daily_fund.diff_percent_close2ma / self.down_grid_height_dict[s_daily_fund.code]))
             positions = self.policy.calculate(s_daily_fund.code, grid_num)
             # 扣除手续费后，下取整算购买份数
             # 追加投资
@@ -62,22 +65,28 @@ class PyramidStrategy(Strategy):
                 logger.debug("[%s]%s距离均线%.1f%%/%d个格,低于上次历史%.1f%%,买入%.1f份  基<---钱",
                              date2str(today),
                              s_daily_fund.code,
-                             s_daily_fund.diff_percent * 100,
+                             s_daily_fund.diff_percent_close2ma * 100,
                              grid_num,
                              self.last_grid_position_dict[s_daily_fund.code] * 100,
                              positions)
-                self.last_grid_position_dict[s_daily_fund.code] = - grid_num * self.grid_height_dict[s_daily_fund.code]
+                self.last_grid_position_dict[s_daily_fund.code] = - grid_num * self.down_grid_height_dict[
+                    s_daily_fund.code]
 
         # 在均线之上，且，超过之前的高度(diff>0)，且，至少超过1个网格(grid_num>=1)，就卖
-        if s_daily_fund.diff_percent > 0 and diff > 0 and grid_num > 1:
+        if s_daily_fund.diff_percent_close2ma > 0 and \
+                diff2last > 0 and \
+                abs(diff2last / self.up_grid_height_dict[s_daily_fund.code]) >= 1:
+            # 计算这次下跌，距离均线的网格数
+            grid_num = abs(
+                round(s_daily_fund.diff_percent_close2ma / self.up_grid_height_dict[s_daily_fund.code]))
             positions = self.policy.calculate(s_daily_fund.code, grid_num)
             # 扣除手续费后，下取整算购买份数
             if self.broker.sell(s_daily_fund.code, next_trade_date, position=positions):
                 logger.debug(">>[%s]%s距离均线%.1f%%/%d个格,高于上次历史%.1f%%,卖出%.1f份  基===>钱",
                              date2str(today),
                              s_daily_fund.code,
-                             s_daily_fund.diff_percent * 100,
+                             s_daily_fund.diff_percent_close2ma * 100,
                              grid_num,
                              self.last_grid_position_dict[s_daily_fund.code] * 100,
                              positions)
-                self.last_grid_position_dict[s_daily_fund.code] = grid_num * self.grid_height_dict[s_daily_fund.code]
+                self.last_grid_position_dict[s_daily_fund.code] = grid_num * self.up_grid_height_dict[s_daily_fund.code]

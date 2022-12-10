@@ -11,6 +11,7 @@ from dingtou.backtest.broker import Broker
 from dingtou.backtest.data_loader import load_fund, load_index, load_funds, load_stocks
 from dingtou.backtest.stat import calculate_metrics
 from dingtou.backtest.utils import str2date
+from dingtou.pyramid.grid_calculator import calculate_grid_values_by_statistics
 from dingtou.pyramid.pyramid_policy import PyramidPolicy
 from dingtou.pyramid.pyramid_strategy import PyramidStrategy
 
@@ -23,7 +24,8 @@ logger = logging.getLogger(__name__)
 
 def backtest(df_baseline: DataFrame,
              funds_data: dict,
-             grid_height_dict: dict,
+             up_grid_height_dict: dict,
+             down_grid_height_dict: dict,
              grid_share_dict: dict,
              start_date,
              end_date,
@@ -34,7 +36,7 @@ def backtest(df_baseline: DataFrame,
     broker.set_sell_commission_rate(0)
     backtester = BackTester(broker, start_date, end_date)
     policy = PyramidPolicy(grid_share_dict)
-    strategy = PyramidStrategy(broker, policy, grid_height_dict)
+    strategy = PyramidStrategy(broker, policy, up_grid_height_dict,down_grid_height_dict)
     backtester.set_strategy(strategy)
     # 单独调用一个set_data，是因为里面要做特殊处理
     backtester.set_data(df_baseline, funds_data)
@@ -101,44 +103,6 @@ def plot(df_baseline, df_fund, df_portfolio, df_buy_trades, df_sell_trades, plot
     fig.savefig(f"debug/{code}_report_{plot_file_subfix}.svg", dpi=200, format='svg')
 
 
-def calculate_grid_values_by_statistics(fund_dict, grid_amount, grid_num):
-    """
-    返回各个基金的格子高度，和，格子最基础的买入份数，
-    计算方法：
-        grid_amount(一个格子的数量) /
-    :param fund_dict:
-    :param grid_amount: 一网格的钱数
-    :param grid_num: 上涨/下跌的格子数，默认10
-    :return:
-    """
-    grid_height_dict = {}
-    grid_share_dict = {}
-    for code, df_fund in fund_dict.items():
-        # 乖离率
-        df_fund['diff_percent'] = (df_fund.close - df_fund.ma) / df_fund.ma
-        # 超过MA的80%的分位数
-        positive = df_fund[df_fund.diff_percent > 0].diff_percent.quantile(0.8)
-        # 低于MA的80%的分位数
-        negative = df_fund[df_fund.diff_percent < 0].diff_percent.quantile(0.2)
-        # 上下一共分为N个格子（默认是20个）
-        grid_height = max(positive, -negative) / grid_num
-        logger.debug("网格高度为：%.2f%%", grid_height * 100)
-        grid_height_dict[code] = grid_height
-
-
-        grid_share_dict[code] = int(grid_amount / df_fund.iloc[-1].ma)
-        logger.debug("找出基金[%s]和移动均线偏离80%%的收益率边界值为：[%.1f%%~%.1f%%]",
-                     df_fund.iloc[0].code,
-                     positive * 100,
-                     negative * 100)
-        logger.debug("按照基金[%s]最新的净值均值，设定的购买金额[%.1f]，可以买入网格基准份数[%.0f]份",
-                     df_fund.iloc[0].code,
-                     grid_amount,
-                     grid_share_dict[code])
-
-    return grid_height_dict, grid_share_dict
-
-
 def main(args, stat_file_name="debug/stat.csv", plot_file_subfix='one'):
     # 加载基准指数数据（周频），如果没有设，就用基金自己；如果是sh开头，加载指数，否则，当做基金加载
     if args.baseline is None:
@@ -155,14 +119,16 @@ def main(args, stat_file_name="debug/stat.csv", plot_file_subfix='one'):
     else:
         fund_dict = load_stocks(codes=args.code.split(","), ma_days=args.ma)
 
-    grid_height_dict, grid_share_dict = calculate_grid_values_by_statistics(fund_dict, args.grid_amount, args.grid_num)
+    up_grid_height_dict, down_grid_height_dict, grid_share_dict = \
+        calculate_grid_values_by_statistics(fund_dict, args.grid_amount, args.grid_num)
 
     # 思来想去，还是分开了baseline和funds（支持多只）的数据
 
     df_portfolio, broker = backtest(
         df_baseline,
         fund_dict,
-        grid_height_dict,
+        up_grid_height_dict,
+        down_grid_height_dict,
         grid_share_dict,
         args.start_date,
         args.end_date,
@@ -213,7 +179,8 @@ sh000905：中证500
 sh000906：中证800
 sh000852：中证1000
 
-python -m dingtou.pyramid.pyramid -c 510500 -s 20180101 -e 20211201 -b sh000905
+
+
 
 python -m dingtou.pyramid.pyramid \ 
 -c 512600 \

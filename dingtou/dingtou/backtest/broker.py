@@ -221,7 +221,7 @@ class Broker:
         # 一种现金流出：购买的价值 + 佣金，计算买入需要的现金的时候，要加上手续费
         self.cashout(buy_value + commission)
 
-        logger.debug("%s以[%.2f]价格买入[%s] %d份/%.2f元,佣金[%.2f],总持仓:%.0f份",
+        logger.debug("[%s]以[%.2f]价格买入[%s] %d份/%.2f元,佣金[%.2f],总持仓:%.0f份",
                      date2str(today),
                      price,
                      trade.code,
@@ -294,7 +294,7 @@ class Broker:
                            self.total_cash)
             return False
         self.trades.append(Trade(code, date, amount, position, 'buy'))
-        logger.debug("[%s]创建买单，买入基金[%s]%r元/%r份", date2str(date), code, amount, position)
+        logger.debug("创建下个交易日[%s]买单，买入基金[%s]%r元/%r份", date2str(date), code, amount, position)
         return True
 
     def sell(self, code, date, amount=None, position=None):
