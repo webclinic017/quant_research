@@ -103,9 +103,12 @@ def plot(df_baseline, df_fund, df_portfolio, df_buy_trades, df_sell_trades, plot
 
 def calculate_grid_values_by_statistics(fund_dict, grid_amount, grid_num):
     """
-    返回各个基金的格子高度，和，格子最基础的买入份数
+    返回各个基金的格子高度，和，格子最基础的买入份数，
+    计算方法：
+        grid_amount(一个格子的数量) /
     :param fund_dict:
-    :param grid_amount: 一网格的钱数，外面出入的
+    :param grid_amount: 一网格的钱数
+    :param grid_num: 上涨/下跌的格子数，默认10
     :return:
     """
     grid_height_dict = {}
@@ -117,12 +120,13 @@ def calculate_grid_values_by_statistics(fund_dict, grid_amount, grid_num):
         positive = df_fund[df_fund.diff_percent > 0].diff_percent.quantile(0.8)
         # 低于MA的80%的分位数
         negative = df_fund[df_fund.diff_percent < 0].diff_percent.quantile(0.2)
-        # 上下分为20个格子
+        # 上下一共分为N个格子（默认是20个）
         grid_height = max(positive, -negative) / grid_num
         logger.debug("网格高度为：%.2f%%", grid_height * 100)
         grid_height_dict[code] = grid_height
 
-        grid_share_dict[code] = int(grid_amount / df_fund.iloc[-1].close)
+
+        grid_share_dict[code] = int(grid_amount / df_fund.iloc[-1].ma)
         logger.debug("找出基金[%s]和移动均线偏离80%%的收益率边界值为：[%.1f%%~%.1f%%]",
                      df_fund.iloc[0].code,
                      positive * 100,
