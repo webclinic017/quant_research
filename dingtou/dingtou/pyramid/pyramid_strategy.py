@@ -21,8 +21,7 @@ class PyramidStrategy(Strategy):
     def set_data(self, df_baseline, funds_dict: dict):
         super().set_data(df_baseline, funds_dict)
         for code, df_daily_fund in funds_dict.items():
-            df_daily_fund['sma242'] = talib.SMA(df_daily_fund.close, timeperiod=242)
-            df_daily_fund['diff_percent_close2ma'] = (df_daily_fund.close - df_daily_fund.sma242) / df_daily_fund.sma242
+            df_daily_fund['diff_percent_close2ma'] = (df_daily_fund.close - df_daily_fund.ma) / df_daily_fund.ma
         for fund_code in funds_dict.keys():
             self.last_grid_position_dict[fund_code] = 0
 

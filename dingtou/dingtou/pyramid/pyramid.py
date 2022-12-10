@@ -93,7 +93,7 @@ def plot(df_baseline, df_fund, df_portfolio, df_buy_trades, df_sell_trades, plot
     ax_portfolio.set_ylabel('投资组合', color='c')  # 设置Y轴标题
 
     # 画组合收益
-    h_portfolio, = ax_portfolio.plot(df_portfolio.index, df_portfolio.total_value, 'r')  # 'c'
+    h_portfolio, = ax_portfolio.plot(df_portfolio.index, df_portfolio.total_value, 'c')
 
     plt.legend(handles=[h_portfolio, h_cost, h_fund_accumulate, h_fund_sma],
                labels=['投资组合', '成本线', '累计净值', '累计净值均线'],

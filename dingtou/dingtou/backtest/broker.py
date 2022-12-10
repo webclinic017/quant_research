@@ -240,30 +240,23 @@ class Broker:
         # 我的总现金量的变多了
         old_total_cash = self.total_cash
         self.total_cash += amount
-        logger.debug("我的总现金增加：%2.f=>%.2f", old_total_cash, self.total_cash)
-
-        # 我从股市上获利了结的总资金量增加了
-        old_total_sell_cash = self.total_sell_cash
-        self.total_sell_cash += amount
-        logger.debug("投入股市总现金：%2.f=>%.2f", old_total_sell_cash, self.total_sell_cash)
-
-        # 我的持仓市值的增加变化
-        logger.debug("我持有市值变为：%2.f元", self.get_total_position_value())
+        logger.debug("总现金：%2.f=>%.2f，总持仓：%.2f，总市值：%.2f",
+                     old_total_cash,
+                     self.total_cash,
+                     self.get_total_position_value(),
+                     self.get_total_value())
 
     def cashout(self, amount):
 
         # 我的总资金量的变化
         old_total_cash = self.total_cash
         self.total_cash -= amount
-        logger.debug("我的总现金减少：%2.f=>%.2f", old_total_cash, self.total_cash)
 
-        # 我从股市上获利了结的总资金量增加的变化
-        old_total_buy_cash = self.total_buy_cash
-        self.total_buy_cash += amount
-        logger.debug("投入股市总现金：%2.f=>%.2f", old_total_buy_cash, self.total_buy_cash)
-
-        # 我的持仓市值的增加变化
-        logger.debug("我持有市值变为：%2.f元", self.get_total_position_value())
+        logger.debug("总现金：%2.f=>%.2f，总持仓：%.2f，总市值：%.2f",
+                     old_total_cash,
+                     self.total_cash,
+                     self.get_total_position_value(),
+                     self.get_total_value())
 
     def is_in_position(self, code):
         for position_code, _ in self.positions.items():
@@ -428,21 +421,21 @@ class Broker:
         original_position_size = len(self.positions)
 
         # 先执行卖出操作
-        sell_trades = [x for x in self.trades if x.action == 'sell']
-        for trade in sell_trades:
-            if self.real_sell(trade, day_date):
-                # 更新市值，每天都要把当天的市值记录下来
-                self.update_market_value(day_date, trade.code)
-
-        # 再执行买入操作
-        buy_trades = [x for x in self.trades if x.action == 'buy']
-        for trade in buy_trades:
-            if self.real_buy(trade, day_date):
-                # 更新市值，每天都要把当天的市值记录下来
-                self.update_market_value(day_date, trade.code)
+        for trade in self.trades:
+            if trade.action == 'sell':
+                self.real_sell(trade, day_date)
+            else:
+                self.real_buy(trade, day_date)
 
         if original_position_size != len(self.positions):
-            logger.debug("%s 日后，仓位变化，从%d=>%d 只", date2str(day_date), original_position_size,
+            logger.debug("%s 日后，仓位变化，从%d=>%d 只",
+                         date2str(day_date),
+                         original_position_size,
                          len(self.positions))
+
+
+        for code,_ in self.positions.items():
+            # 更新市值，每天都要把当天的市值记录下来
+            self.update_market_value(day_date, code)
 
         self.update_total_market_value(day_date)
