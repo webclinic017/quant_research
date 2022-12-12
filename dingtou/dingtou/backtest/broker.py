@@ -406,7 +406,7 @@ class Broker:
 
     def get_total_position_value(self):
         """最新的总仓位值：仅持仓"""
-        return self.df_total_market_value.iloc[-1].market_value
+        return self.df_total_market_value.iloc[-1].total_position_value
 
 
     def set_strategy(self, strategy):

@@ -29,8 +29,8 @@ class PeriodStrategy(Strategy):
         df_baseline['short'] = np.NaN
         df_baseline['signal'] = np.NaN
 
-    def next(self, today, next_trade_date):
-        super().next(today, next_trade_date)
+    def next(self, today, trade_date):
+        super().next(today, trade_date)
 
         df_baseline = self.df_baseline
         df_fund = list(self.funds_dict.values())[0]  # TODO: 这里先选择了第一只基金，将来多只的时候，要遍历的
@@ -60,4 +60,4 @@ class PeriodStrategy(Strategy):
         # 计算出购入金额
         amount = self.cash_distribute.calculate(sma_value, current_value=baseline_close)
         # 扣除手续费后，下取整算购买份数
-        self.broker.buy(fund_code, next_trade_date, amount=amount)
+        self.broker.buy(fund_code, trade_date, amount=amount)

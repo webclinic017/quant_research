@@ -15,7 +15,7 @@ class Strategy():
         self.df_baseline = df_baseline
         self.funds_dict = funds_dict
 
-    def next(self, today, next_trade_date):
+    def next(self, today, trade_date):
         """
         :param today: 当前的交易日
         :return:

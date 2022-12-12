@@ -18,13 +18,13 @@ if __name__ == '__main__':
     args = AttributeDict()
     args.start_date = '20210201'
     args.end_date = '20230101'
-    args.amount = 800000
+    args.amount = 2000000
     args.baseline = 'sh000001'
-    args.grid_num = 10
+    args.grid_num = 100
     args.ma = 480
     args.type = 'fund'
     args.code = "510310,510560,512000,512010,512040,512070,512330,512480,512560,512600"
-    args.grid_amount = 1000
+    args.grid_amount = 100
 
     df = main(args,stat_file_name = "debug/stat_compose.csv",plot_file_subfix='compose')
     df = df[["基金代码", "投资起始", "投资结束", "期初资金", "期末现金", "期末持仓", "期末总值", "组合收益率",

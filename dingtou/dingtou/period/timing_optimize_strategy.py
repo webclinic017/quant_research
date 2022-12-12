@@ -76,8 +76,8 @@ class TimingOptimizeStrategy(Strategy):
 
         return False
 
-    def next(self, today, next_trade_date):
-        super().next(today, next_trade_date)
+    def next(self, today, trade_date):
+        super().next(today, trade_date)
 
         df_baseline = self.df_baseline
         df_fund = list(self.funds_dict.values())[0]  # TODO: 这里先选择了第一只基金，将来多只的时候，要遍历的
@@ -95,7 +95,7 @@ class TimingOptimizeStrategy(Strategy):
         fund_net_value = None if s_fund is None else s_fund.close
 
         # 如果止盈，今天就不交易了
-        if self.take_profit(fund_code, today, next_trade_date, fund_net_value):
+        if self.take_profit(fund_code, today, trade_date, fund_net_value):
             return
 
         # 如果当天无指数数据，忽略，因为我们是根据指数的情况来决定买入的信号的
@@ -139,5 +139,5 @@ class TimingOptimizeStrategy(Strategy):
                 # 追加投资,TODO: hack做法
                 self.broker.total_cash += amount
                 # 扣除手续费后，下取整算购买份数
-                self.broker.buy(fund_code, next_trade_date, amount=amount)
+                self.broker.buy(fund_code, trade_date, amount=amount)
                 # share = int(amount*(1-BUY_COMMISSION_RATE) / fund_net_value)

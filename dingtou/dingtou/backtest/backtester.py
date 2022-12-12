@@ -8,17 +8,19 @@ class BackTester():
     回测核心类，类似于backtrader的cerebro
     """
 
-    def __init__(self, broker, start_date, end_date):
+    def __init__(self, broker, start_date, end_date, buy_day='tomorrow'):
         """
 
         :param amount: 投资金额
         :param periods: 投资期数
+        :param buy_day today|tomorrow ，是当日成交，还是下一个交易日成交
         :return:
         """
         # 交易代理商
         self.broker = broker
         self.start_date = start_date
         self.end_date = end_date
+        self.buy_day = buy_day
 
     def set_broker(self, b):
         self.broker = b
@@ -66,7 +68,8 @@ class BackTester():
 
             # 触发当日的策略执行
             if i == len(self.dates) - 1: continue  # 防止越界
-            self.strategy.next(today=today, next_trade_date=self.dates[i + 1])
+            trade_day = today if self.buy_day=='today' else self.dates[i + 1]
+            self.strategy.next(today=today, trade_date=today)
 
             # 触发交易代理的执行，这里才会真正的执行交易
             self.broker.run(today)

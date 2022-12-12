@@ -25,12 +25,12 @@ class PyramidStrategy(Strategy):
         for fund_code in funds_dict.keys():
             self.last_grid_position_dict[fund_code] = 0
 
-    def next(self, today, next_trade_date):
-        super().next(today, next_trade_date)
+    def next(self, today, trade_date):
+        super().next(today, trade_date)
 
         # 遍历每一只基金，分别处理
         for fund_code, df_fund in self.funds_dict.items():
-            self.handle_one_fund(df_fund, today, next_trade_date)
+            self.handle_one_fund(df_fund, today, trade_date)
 
     def handle_one_fund(self, df_daily_fund, today, next_trade_date):
         """

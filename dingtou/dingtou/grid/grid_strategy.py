@@ -93,8 +93,8 @@ class GridStrategy(Strategy):
 
         return False
 
-    def next(self, today, next_trade_date):
-        super().next(today, next_trade_date)
+    def next(self, today, trade_date):
+        super().next(today, trade_date)
 
         df_daily_fund = list(self.funds_dict.values())[0]  # TODO: 这里先选择了第一只基金，将来多只的时候，要遍历的
         df_weekly_fund = list(self.fund_weekly_dict.values())[0]  # TODO: 这里先选择了第一只基金，将来多只的时候，要遍历的
@@ -168,7 +168,7 @@ class GridStrategy(Strategy):
             else:
                 # 计算卖出份数，0.2N(仓位)*网格数
                 position = int(grid_num * 0.2 * N)
-                self.broker.sell(s_weekly_fund.code, next_trade_date, position=position)
+                self.broker.sell(s_weekly_fund.code, trade_date, position=position)
                 logger.debug("[%s]上涨,%d个网格,卖出基金[%s]%d份",
                              date2str(today),
                              grid_num,
@@ -187,4 +187,4 @@ class GridStrategy(Strategy):
                          position)
 
             # 扣除手续费后，下取整算购买份数
-            self.broker.buy(s_weekly_fund.code, next_trade_date, position=position)
+            self.broker.buy(s_weekly_fund.code, trade_date, position=position)

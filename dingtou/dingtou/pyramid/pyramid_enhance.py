@@ -1,7 +1,6 @@
 import argparse
 import logging
 
-import matplotlib.pyplot as plt
 import pandas as pd
 from pandas import DataFrame
 
@@ -11,9 +10,9 @@ from dingtou.backtest.broker import Broker
 from dingtou.backtest.data_loader import load_fund, load_index, load_funds, load_stocks
 from dingtou.backtest.stat import calculate_metrics
 from dingtou.backtest.utils import str2date
-from dingtou.pyramid.grid_calculator import calculate_grid_values_by_statistics
-from dingtou.pyramid.pyramid_policy import PyramidPolicy
-from dingtou.pyramid.pyramid_strategy import PyramidStrategy
+from dingtou.pyramid.pyramid import plot
+from dingtou.pyramid.pyramid_enhance_policy import PyramidEnhancePolicy
+from dingtou.pyramid.pyramid_enhance_strategy import PyramidEnhanceStrategy
 
 logger = logging.getLogger(__name__)
 
@@ -24,19 +23,18 @@ logger = logging.getLogger(__name__)
 
 def backtest(df_baseline: DataFrame,
              funds_data: dict,
-             up_grid_height_dict: dict,
-             down_grid_height_dict: dict,
-             grid_share_dict: dict,
              start_date,
              end_date,
-             amount):
+             amount,
+             grid_height,
+             overlap_grid_num):
     # 上来是0元
     broker = Broker(amount)
     broker.set_buy_commission_rate(0.0001)  # 参考华宝证券：ETF手续费万1，单笔最低0.2元
     broker.set_sell_commission_rate(0)
     backtester = BackTester(broker, start_date, end_date)
-    policy = PyramidPolicy(grid_share_dict)
-    strategy = PyramidStrategy(broker, policy, up_grid_height_dict,down_grid_height_dict)
+    policy = PyramidEnhancePolicy(overlap_grid_num)
+    strategy = PyramidEnhanceStrategy(broker, policy, grid_height, overlap_grid_num)
     backtester.set_strategy(strategy)
     # 单独调用一个set_data，是因为里面要做特殊处理
     backtester.set_data(df_baseline, funds_data)
@@ -44,63 +42,6 @@ def backtest(df_baseline: DataFrame,
     # 运行回测！！！
     backtester.run()
     return broker.df_total_market_value, broker
-
-
-def plot(df_baseline, df_fund, df_portfolio, df_buy_trades, df_sell_trades, plot_file_subfix):
-    plt.clf()
-    code = df_fund.iloc[0].code
-    fig = plt.figure(figsize=(50, 10), dpi=(200))
-
-    # 设置基准X轴
-    ax_baseline = fig.add_subplot(111)
-    ax_baseline.grid()
-    ax_baseline.set_title(f"{code}投资报告")
-    ax_baseline.set_xlabel('日期')  # 设置x轴标题
-
-    # 画基准
-    # h_baseline_close, = ax_baseline.plot(df_baseline.index, df_baseline.close, 'r')
-
-    # --------------------------------------------------------
-
-    # 设置单位净值Y轴
-    ax_fund = ax_baseline.twinx()  # 返回共享x轴的第3个轴
-    # ax_fund.set_ylabel('单位净值', color='b')  # 设置Y轴标题
-    # 画单位净值日线
-    # h_fund, = ax_fund.plot(df_fund.index, df_fund.close, 'b', linewidth=2)
-
-    # --------------------------------------------------------
-
-    # 画累计净值基金日线
-    ax_fund_accumulate = ax_baseline.twinx()  # 返回共享x轴的第3个轴
-    ax_fund_accumulate.set_ylabel('累计净值', color='g')  # 设置Y轴标题
-    ax_fund_accumulate.spines['right'].set_position(('outward', 60))  # right, left, top, bottom
-    h_fund_accumulate, = ax_fund_accumulate.plot(df_fund.index, df_fund.close, 'b', linewidth=2)
-    # 画累计净值基金均线
-    h_fund_sma, = ax_fund_accumulate.plot(df_fund.index, df_fund.ma, color='g', linestyle='--', linewidth=1)
-    # 画买卖信号
-    ax_fund_accumulate.scatter(df_buy_trades.actual_date, df_buy_trades.price, marker='^', c='r', s=40)
-    # 不一定有卖
-    if len(df_sell_trades) > 0:
-        ax_fund_accumulate.scatter(df_sell_trades.actual_date, df_sell_trades.price, marker='v', c='g', s=40)
-    # 画成我持仓成本线
-    h_cost, = ax_fund_accumulate.plot(df_portfolio.index, df_portfolio.cost, 'm', linestyle='--', linewidth=0.5)
-
-    # --------------------------------------------------------
-
-    # 设置组合的Y轴
-    ax_portfolio = ax_baseline.twinx()  # 返回共享x轴的第二个轴
-    ax_portfolio.spines['right'].set_position(('outward', 120))  # right, left, top, bottom
-    ax_portfolio.set_ylabel('投资组合', color='c')  # 设置Y轴标题
-
-    # 画组合收益
-    h_portfolio, = ax_portfolio.plot(df_portfolio.index, df_portfolio.total_value, 'c')
-
-    plt.legend(handles=[h_portfolio, h_cost, h_fund_accumulate, h_fund_sma],
-               labels=['投资组合', '成本线', '累计净值', '累计净值均线'],
-               loc='best')
-
-    # 保存图片
-    fig.savefig(f"debug/{code}_report_{plot_file_subfix}.svg", dpi=200, format='svg')
 
 
 def main(args, stat_file_name="debug/stat.csv", plot_file_subfix='one'):
@@ -119,20 +60,16 @@ def main(args, stat_file_name="debug/stat.csv", plot_file_subfix='one'):
     else:
         fund_dict = load_stocks(codes=args.code.split(","), ma_days=args.ma)
 
-    up_grid_height_dict, down_grid_height_dict, grid_share_dict = \
-        calculate_grid_values_by_statistics(fund_dict, args.grid_amount, args.grid_num)
-
     # 思来想去，还是分开了baseline和funds（支持多只）的数据
 
     df_portfolio, broker = backtest(
         df_baseline,
         fund_dict,
-        up_grid_height_dict,
-        down_grid_height_dict,
-        grid_share_dict,
         args.start_date,
         args.end_date,
-        args.amount)
+        args.amount,
+        args.grid_height,
+        args.overlap_grid)
     df_portfolio.sort_values('date')
     df_portfolio.set_index('date', inplace=True)
 
@@ -171,44 +108,14 @@ def main(args, stat_file_name="debug/stat.csv", plot_file_subfix='one'):
 
 
 """
-指数代码：https://q.stock.sohu.com/cn/zs.shtml
-sh000001: 上证指数
-sh000300: 沪深300
-sh000016：上证50
-sh000905：中证500
-sh000906：中证800
-sh000852：中证1000
-
-
-
-
-python -m dingtou.pyramid.pyramid \
+python -m dingtou.pyramid.pyramid_enhance \
 -c 510500 \
--s 20210101 \
+-s 20190101 \
 -e 20230101 \
 -b sh000001 \
--a 500000 \
--m 480 \
--gn 100 \
--ga 100
-
-python -m dingtou.pyramid.pyramid \
--c 510310,510560,512000,512010,512040,512070,512330,512480,512560,512600 \
--s 20180101 \ 
--e 20210101 \
--b sh000001 \
--a 200000 
-
-
-python -m dingtou.pyramid.pyramid \ 
--c 002583 \
--t stock \
--s 20180101 \
--e 20210101 \
--b sh000001 \
 -a 200000 \
--ga 2000
-
+-m 242 \
+-gh 0.008
 """
 if __name__ == '__main__':
     utils.init_logger()
@@ -222,8 +129,8 @@ if __name__ == '__main__':
     parser.add_argument('-c', '--code', type=str, help="股票代码")
     parser.add_argument('-a', '--amount', type=int, default=500000, help="投资金额，默认50万")
     parser.add_argument('-t', '--type', type=str, default='fund', help="fund|stock")
-    parser.add_argument('-ga', '--grid_amount', type=int, default=1000, help="每网格买入份数，默认1万")
-    parser.add_argument('-gn', '--grid_num', type=int, default=10, help="格子的数量")
+    parser.add_argument('-gh', '--grid_height', type=float, default=0.008, help="格子的高度")
+    parser.add_argument('-og', '--overlap_grid', type=int, default=10, help="对敲区间（格子数）")
     args = parser.parse_args()
     logger.info(args)
     main(args)
