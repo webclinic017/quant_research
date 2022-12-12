@@ -129,7 +129,7 @@ if __name__ == '__main__':
     parser.add_argument('-c', '--code', type=str, help="股票代码")
     parser.add_argument('-a', '--amount', type=int, default=500000, help="投资金额，默认50万")
     parser.add_argument('-t', '--type', type=str, default='fund', help="fund|stock")
-    parser.add_argument('-gh', '--grid_height', type=float, default=0.008, help="格子的高度")
+    parser.add_argument('-gh', '--grid_height', type=float, default=0.01, help="格子的高度")
     parser.add_argument('-og', '--overlap_grid', type=int, default=10, help="对敲区间（格子数）")
     args = parser.parse_args()
     logger.info(args)
