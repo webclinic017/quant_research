@@ -3,6 +3,7 @@ import logging
 
 import matplotlib.pyplot as plt
 import pandas as pd
+import matplotlib.dates as mdates
 from pandas import DataFrame
 
 from dingtou.backtest import utils
@@ -56,7 +57,9 @@ def plot(df_baseline, df_fund, df_portfolio, df_buy_trades, df_sell_trades, plot
     ax_baseline.grid()
     ax_baseline.set_title(f"{code}投资报告")
     ax_baseline.set_xlabel('日期')  # 设置x轴标题
-
+    ax_baseline.xaxis.set_major_locator( mdates.MonthLocator(interval=1))
+    ax_baseline.xaxis.set_major_formatter(mdates.DateFormatter('%Y/%m'))
+    plt.xticks(rotation=45)
     # 画基准
     # h_baseline_close, = ax_baseline.plot(df_baseline.index, df_baseline.close, 'r')
 

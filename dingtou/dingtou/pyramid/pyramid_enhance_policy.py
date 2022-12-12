@@ -28,7 +28,9 @@ class PyramidEnhancePolicy():
         else:  # 'sell'
             # 因为有对敲区，所以在卖的数量上，要累加一个overlap_grid_num
             # 计算出卖的时候的倒金字塔的序号，从1开始
-            print(current_grid_position,self.overlap_grid_num)
+
             sell_grid_no = current_grid_position + self.overlap_grid_num + 1
             assert sell_grid_no >= 1, f"计算卖的网格位置{sell_grid_no}不对，必须要>=1"
+
+            # logger.debug("current:%d,overlap:%d,sell_grid_no:%d,sell share:%d", current_grid_position, self.overlap_grid_num,sell_grid_no,self.share_per_grid * sell_grid_no)
             return self.share_per_grid * sell_grid_no

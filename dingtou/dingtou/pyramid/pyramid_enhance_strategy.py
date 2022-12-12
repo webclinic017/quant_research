@@ -80,12 +80,15 @@ class PyramidEnhanceStrategy(Strategy):
         if pd.isna(s_daily_fund.diff_percent_close2ma): return
 
         # 当前和上次位置的距离（单位是百分比）
-        diff2last = s_daily_fund.diff_percent_close2ma - self.last_grid_position_dict[s_daily_fund.code]
+
         # 得到格子数，有可能是负数，。。。， -3，-2，-1，1，2，3，。。。，下面的if/else写法就是为了得到这个当前点位位于的格子编号
+        diff2last = s_daily_fund.diff_percent_close2ma
         current_grid_position = diff2last // self.grid_height if diff2last < 0 else 1 + diff2last // self.grid_height
         last_grid_position = self.last_grid_position_dict[s_daily_fund.code]
 
         if current_grid_position == last_grid_position: return  # 在同一个格子，啥也不干
+
+        # import pdb;pdb.set_trace()
 
         # 如果在均线下方，且，比上次的还低1~N个格子，那么就买入
         if current_grid_position < 0 and current_grid_position < last_grid_position:
@@ -118,18 +121,21 @@ class PyramidEnhanceStrategy(Strategy):
                              self.last_grid_position_dict[s_daily_fund.code] * 100,
                              positions)
                 self.last_grid_position_dict[s_daily_fund.code] = current_grid_position
+            return
+
+        # logger.debug("current:%d,last:%d,diff:%.2f%%",current_grid_position,last_grid_position,diff2last*100)
 
         # 在均线之上，且，超过之前的高度(diff>0)，且，至少超过1个网格(grid_num>=1)，就卖
-        if current_grid_position > last_grid_position > 0:
+        if current_grid_position > last_grid_position and current_grid_position> 0:
 
             positions = self.policy.calculate(current_grid_position,'sell')
             # 扣除手续费后，下取整算购买份数
             if self.broker.sell(s_daily_fund.code, target_date, position=positions):
-                logger.debug(">>[%s]%s距离均线%.1f%%/%d个格,高于上次历史%.1f%%,卖出%.1f份  基===>钱",
+                logger.debug(">>[%s]%s距离均线%.1f%%/%d个格,高于上次(第%d格),卖出%.1f份  基===>钱",
                              date2str(today),
                              s_daily_fund.code,
                              s_daily_fund.diff_percent_close2ma * 100,
                              current_grid_position,
                              self.last_grid_position_dict[s_daily_fund.code] * 100,
                              positions)
-                self.last_grid_position_dict[s_daily_fund.code] = current_grid_position * self.grid_height[s_daily_fund.code]
+                self.last_grid_position_dict[s_daily_fund.code] = current_grid_position
