@@ -1,3 +1,4 @@
+from dingtou.backtest import utils
 from dingtou.backtest.strategy import Strategy
 from dingtou.backtest.utils import get_value, date2str
 import logging
@@ -7,7 +8,7 @@ import pandas as pd
 logger = logging.getLogger(__name__)
 
 
-class PyramidEnhanceStrategy(Strategy):
+class PyramidV2Strategy(Strategy):
     """
     上一个PyramidStrategy效果还是一般，开始组合挺好的，但是后来发现了一个bug，只用到了第一个标的的数据，
     仔细再看了王纯迅的视频[年化20%的算法交易](https://www.bilibili.com/video/BV1d5411P7Lt)，
@@ -43,7 +44,7 @@ class PyramidEnhanceStrategy(Strategy):
 
     """
 
-    def __init__(self, broker, policy,grid_height, overlap_grid_num):
+    def __init__(self, broker, policy, grid_height, overlap_grid_num, ma_days, end_date):
         super().__init__(broker, None)
         # self.grid_height = 0.008 # 千分之8的格子高度，是王纯迅在视频里透露的：https://www.bilibili.com/video/BV1d5411P7Lt
         self.grid_height = grid_height  # 上涨时候网格高度，百分比，如0.008
@@ -51,10 +52,33 @@ class PyramidEnhanceStrategy(Strategy):
         self.policy = policy
         self.last_grid_position_dict = {}
 
+        self.ma_days = ma_days
+        self.end_date = utils.str2date(end_date)
+
+        # 统计用
+        self.buy_ok = 0
+        self.sell_ok = 0
+        self.buy_fail = 0
+        self.sell_fail = 0
+
     def set_data(self, df_baseline, funds_dict: dict):
         super().set_data(df_baseline, funds_dict)
+
         for code, df_daily_fund in funds_dict.items():
+            # 留着这个代码恶心自己，这个用到了未来函数
+            # df = df_daily_fund[df_daily_fund.index<=self.end_date]
+            # avg_close = (df.iloc[-self.ma_days:].close.max() + df.iloc[-self.ma_days:].close.min())/2
+            # 这才是正确做法，每天都算前3年的平均值
+            if self.ma_days <= 0:
+                # 如果是self.ma_days是负值，回看前N天的最大最小值的中间值
+                maxs = talib.MAX(df_daily_fund.close, timeperiod=-self.ma_days)
+                mins = talib.MIN(df_daily_fund.close, timeperiod=-self.ma_days)
+                df_daily_fund['ma'] = (maxs + mins) / 2
+            else:
+                # 如果是self.ma_days是正值，用N天的均线
+                df_daily_fund['ma'] = talib.SMA(df_daily_fund.close, timeperiod=self.ma_days)
             df_daily_fund['diff_percent_close2ma'] = (df_daily_fund.close - df_daily_fund.ma) / df_daily_fund.ma
+
         for fund_code in funds_dict.keys():
             self.last_grid_position_dict[fund_code] = 0
 
@@ -73,8 +97,6 @@ class PyramidEnhanceStrategy(Strategy):
         :param target_date:
         :return:
         """
-
-        # 先看日数据：1、止损 2、
         s_daily_fund = get_value(df_daily_fund, today)
         if s_daily_fund is None: return
         if pd.isna(s_daily_fund.diff_percent_close2ma): return
@@ -93,7 +115,7 @@ class PyramidEnhanceStrategy(Strategy):
         # 如果在均线下方，且，比上次的还低1~N个格子，那么就买入
         if current_grid_position < 0 and current_grid_position < last_grid_position:
             # 根据偏离均线幅度，决定购买的份数
-            positions = self.policy.calculate(current_grid_position,'buy')
+            positions = self.policy.calculate(current_grid_position, 'buy')
             # 买入
             if self.broker.buy(s_daily_fund.code,
                                target_date,
@@ -106,12 +128,15 @@ class PyramidEnhanceStrategy(Strategy):
                              self.last_grid_position_dict[s_daily_fund.code] * 100,
                              positions)
                 self.last_grid_position_dict[s_daily_fund.code] = current_grid_position
+                self.buy_ok += 1
+            else:
+                self.buy_fail += 1
             return
 
         # 如果在均线下方，且，比上次的还高1~N个格子，且，在对敲(overlap)区，那么就卖出对应的份数
         if 0 > current_grid_position > last_grid_position and \
                 abs(current_grid_position) < self.overlap_grid_num:
-            positions = self.policy.calculate(current_grid_position,'sell')
+            positions = self.policy.calculate(current_grid_position, 'sell')
             if self.broker.sell(s_daily_fund.code, target_date, position=positions):
                 logger.debug(">>[%s]%s均线下方%.1f%%/第%d格,高于上次(第%d格),对敲卖出%.1f份  (对敲) 基===>钱",
                              date2str(today),
@@ -121,14 +146,18 @@ class PyramidEnhanceStrategy(Strategy):
                              self.last_grid_position_dict[s_daily_fund.code] * 100,
                              positions)
                 self.last_grid_position_dict[s_daily_fund.code] = current_grid_position
+                self.sell_ok += 1
+            else:
+                if self.broker.positions.get(s_daily_fund.code, None) is not None:
+                    self.sell_fail += 1
             return
 
         # logger.debug("current:%d,last:%d,diff:%.2f%%",current_grid_position,last_grid_position,diff2last*100)
 
         # 在均线之上，且，超过之前的高度(diff>0)，且，至少超过1个网格(grid_num>=1)，就卖
         if current_grid_position > last_grid_position and current_grid_position> 0:
-
-            positions = self.policy.calculate(current_grid_position,'sell')
+        # if current_grid_position > 0:
+            positions = self.policy.calculate(current_grid_position, 'sell')
             # 扣除手续费后，下取整算购买份数
             if self.broker.sell(s_daily_fund.code, target_date, position=positions):
                 logger.debug(">>[%s]%s距离均线%.1f%%/%d个格,高于上次(第%d格),卖出%.1f份  基===>钱",
@@ -139,3 +168,8 @@ class PyramidEnhanceStrategy(Strategy):
                              self.last_grid_position_dict[s_daily_fund.code] * 100,
                              positions)
                 self.last_grid_position_dict[s_daily_fund.code] = current_grid_position
+                self.sell_ok += 1
+            else:
+                if self.broker.positions.get(s_daily_fund.code, None) is not None:
+                    self.sell_fail += 1
+

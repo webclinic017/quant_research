@@ -30,14 +30,15 @@ def backtest(df_baseline: DataFrame,
              grid_share_dict: dict,
              start_date,
              end_date,
-             amount):
+             amount,
+             ma_days):
     # 上来是0元
     broker = Broker(amount)
     broker.set_buy_commission_rate(0.0001)  # 参考华宝证券：ETF手续费万1，单笔最低0.2元
     broker.set_sell_commission_rate(0)
     backtester = BackTester(broker, start_date, end_date)
     policy = PyramidPolicy(grid_share_dict)
-    strategy = PyramidStrategy(broker, policy, up_grid_height_dict,down_grid_height_dict)
+    strategy = PyramidStrategy(broker, policy, up_grid_height_dict,down_grid_height_dict,ma_days)
     backtester.set_strategy(strategy)
     # 单独调用一个set_data，是因为里面要做特殊处理
     backtester.set_data(df_baseline, funds_data)
@@ -118,9 +119,9 @@ def main(args, stat_file_name="debug/stat.csv", plot_file_subfix='one'):
     # 加载基金数据，标准化列名，close是为了和标准的指数的close看齐
 
     if args.type == 'fund':
-        fund_dict = load_funds(codes=args.code.split(","), ma_days=args.ma)
+        fund_dict = load_funds(codes=args.code.split(","))
     else:
-        fund_dict = load_stocks(codes=args.code.split(","), ma_days=args.ma)
+        fund_dict = load_stocks(codes=args.code.split(","))
 
     up_grid_height_dict, down_grid_height_dict, grid_share_dict = \
         calculate_grid_values_by_statistics(fund_dict, args.grid_amount, args.grid_num)
@@ -135,7 +136,8 @@ def main(args, stat_file_name="debug/stat.csv", plot_file_subfix='one'):
         grid_share_dict,
         args.start_date,
         args.end_date,
-        args.amount)
+        args.amount,
+        args.ma)
     df_portfolio.sort_values('date')
     df_portfolio.set_index('date', inplace=True)
 
@@ -191,9 +193,20 @@ python -m dingtou.pyramid.pyramid \
 -e 20230101 \
 -b sh000001 \
 -a 500000 \
--m 480 \
+-m 240 \
 -gn 100 \
 -ga 100
+
+python -m dingtou.pyramid.pyramid \
+-c 510500 \
+-s 20210101 \
+-e 20230101 \
+-b sh000001 \
+-a 500000 \
+-m -720 \
+-gn 100 \
+-ga 100
+
 
 python -m dingtou.pyramid.pyramid \
 -c 510310,510560,512000,512010,512040,512070,512330,512480,512560,512600 \
@@ -201,17 +214,6 @@ python -m dingtou.pyramid.pyramid \
 -e 20210101 \
 -b sh000001 \
 -a 200000 
-
-
-python -m dingtou.pyramid.pyramid \ 
--c 002583 \
--t stock \
--s 20180101 \
--e 20210101 \
--b sh000001 \
--a 200000 \
--ga 2000
-
 """
 if __name__ == '__main__':
     utils.init_logger()

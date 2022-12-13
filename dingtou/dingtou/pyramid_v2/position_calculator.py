@@ -3,17 +3,17 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-class PyramidEnhancePolicy():
+class PositionCalculator():
     """
     关于仓位的计算：
     你买入的时候，按照金字塔买入，越跌买的越多，那么问题来了，你买多少钱？或者买多少手？
     我们现在是按照份来，就是固定的手数（场内ETF必须是整手）
     """
 
-    def __init__(self, overlap_grid_num):
+    def __init__(self, overlap_grid_num,grid_share):
         # TODO: 等着后续重构，份数要动态决定
         # self.share_per_grid_dict = share_per_grid_dict
-        self.share_per_grid = 100
+        self.share_per_grid = grid_share
         self.overlap_grid_num = overlap_grid_num
 
     def calculate(self, current_grid_position, buy_or_sell):

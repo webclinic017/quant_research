@@ -10,9 +10,9 @@ from dingtou.backtest.broker import Broker
 from dingtou.backtest.data_loader import load_fund, load_index, load_funds, load_stocks
 from dingtou.backtest.stat import calculate_metrics
 from dingtou.backtest.utils import str2date
-from dingtou.pyramid.pyramid import plot
-from dingtou.pyramid.pyramid_enhance_policy import PyramidEnhancePolicy
-from dingtou.pyramid.pyramid_enhance_strategy import PyramidEnhanceStrategy
+from dingtou.pyramid_v2.plot import plot
+from dingtou.pyramid_v2.position_calculator import PositionCalculator
+from dingtou.pyramid_v2.pyramid_v2_strategy import PyramidV2Strategy
 
 logger = logging.getLogger(__name__)
 
@@ -27,20 +27,28 @@ def backtest(df_baseline: DataFrame,
              end_date,
              amount,
              grid_height,
-             overlap_grid_num):
+             grid_share,
+             overlap_grid_num,
+             ma_days):
     # 上来是0元
     broker = Broker(amount)
     broker.set_buy_commission_rate(0.0001)  # 参考华宝证券：ETF手续费万1，单笔最低0.2元
     broker.set_sell_commission_rate(0)
-    backtester = BackTester(broker, start_date, end_date)
-    policy = PyramidEnhancePolicy(overlap_grid_num)
-    strategy = PyramidEnhanceStrategy(broker, policy, grid_height, overlap_grid_num)
+    backtester = BackTester(broker, start_date, end_date,buy_day='today')
+    policy = PositionCalculator(overlap_grid_num,grid_share)
+    strategy = PyramidV2Strategy(broker, policy, grid_height, overlap_grid_num,ma_days,end_date)
     backtester.set_strategy(strategy)
     # 单独调用一个set_data，是因为里面要做特殊处理
     backtester.set_data(df_baseline, funds_data)
 
     # 运行回测！！！
     backtester.run()
+
+    logger.info("buy ok：%d",strategy.buy_ok)
+    logger.info("buy fail：%d", strategy.buy_fail)
+    logger.info("sell ok：%d", strategy.sell_ok)
+    logger.info("sell fail：%d", strategy.sell_fail)
+
     return broker.df_total_market_value, broker
 
 
@@ -54,11 +62,7 @@ def main(args, stat_file_name="debug/stat.csv", plot_file_subfix='one'):
         df_baseline = load_fund(code=args.baseline)
 
     # 加载基金数据，标准化列名，close是为了和标准的指数的close看齐
-
-    if args.type == 'fund':
-        fund_dict = load_funds(codes=args.code.split(","), ma_days=args.ma)
-    else:
-        fund_dict = load_stocks(codes=args.code.split(","), ma_days=args.ma)
+    fund_dict = load_funds(codes=args.code.split(","))
 
     # 思来想去，还是分开了baseline和funds（支持多只）的数据
 
@@ -69,7 +73,9 @@ def main(args, stat_file_name="debug/stat.csv", plot_file_subfix='one'):
         args.end_date,
         args.amount,
         args.grid_height,
-        args.overlap_grid)
+        args.grid_share,
+        args.overlap,
+        args.ma)
     df_portfolio.sort_values('date')
     df_portfolio.set_index('date', inplace=True)
 
@@ -88,7 +94,7 @@ def main(args, stat_file_name="debug/stat.csv", plot_file_subfix='one'):
 
         if broker.positions.get(df_fund.iloc[0].code, None) is None:
             logger.warning("基金[%s]未发生任何一笔交易", df_fund.iloc[0].code)
-        stat = calculate_metrics(df_portfolio, df_baseline, df_fund, broker, args)
+        stat = calculate_metrics(df_portfolio, df_baseline, df_fund, broker, args.amount,start_date,end_date)
         df_stat = df_stat.append(stat, ignore_index=True)
         df_buy_trades = broker.df_trade_history[
             (broker.df_trade_history.code == code) & (broker.df_trade_history.action == 'buy')]
@@ -108,14 +114,25 @@ def main(args, stat_file_name="debug/stat.csv", plot_file_subfix='one'):
 
 
 """
-python -m dingtou.pyramid.pyramid_enhance \
+python -m dingtou.pyramid_v2.pyramid_v2 \
 -c 510500 \
 -s 20190101 \
 -e 20230101 \
 -b sh000001 \
 -a 200000 \
--m 242 \
--gh 0.008
+-m -720 \
+-gs 100 \
+-gh 0.01 \
+-o 3
+
+挑选选择：1、时间足够长；2、价格不是很贵（未拆分）：
+- 华夏上证50ETF 510050  / 2014
+- 沪深300ETF易方达 510310 / 2013
+- 南方中证500ETF 510500 / 2013
+
+- 券商ETF 512000
+- 易方达中证军工ETF 512560 / 2017
+- 嘉实中证主要消费ETF 512600  / 2014
 """
 if __name__ == '__main__':
     utils.init_logger()
@@ -125,12 +142,13 @@ if __name__ == '__main__':
     parser.add_argument('-s', '--start_date', type=str, default="20150101", help="开始日期")
     parser.add_argument('-e', '--end_date', type=str, default="20221201", help="结束日期")
     parser.add_argument('-b', '--baseline', type=str, default=None, help="基准指数，这个策略里就是基金本身")
-    parser.add_argument('-m', '--ma', type=int, default=240, help="基金的移动均值")
     parser.add_argument('-c', '--code', type=str, help="股票代码")
     parser.add_argument('-a', '--amount', type=int, default=500000, help="投资金额，默认50万")
-    parser.add_argument('-t', '--type', type=str, default='fund', help="fund|stock")
-    parser.add_argument('-gh', '--grid_height', type=float, default=0.01, help="格子的高度")
-    parser.add_argument('-og', '--overlap_grid', type=int, default=10, help="对敲区间（格子数）")
+    parser.add_argument('-m', '--ma', type=int, default=10, help=">0:间隔ma天的移动均线,<0:回看的最大最小值的均值")
+    parser.add_argument('-gh', '--grid_height', type=float, default=0.01, help="格子的高度，百分比，默认1%")
+    parser.add_argument('-gs', '--grid_share', type=int, default=100, help="每格子的基础份额")
+    parser.add_argument('-o', '--overlap', type=int, default=3, help="对敲区间（格子数）")
+
     args = parser.parse_args()
     logger.info(args)
     main(args)

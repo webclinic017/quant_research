@@ -8,7 +8,7 @@ from dingtou.backtest.utils import date2str
 
 logger = logging.getLogger(__name__)
 
-def calculate_metrics(df_portfolio, df_baseline, df_fund, broker,args):
+def calculate_metrics(df_portfolio, df_baseline, df_fund, broker,initial_amount, start_date,end_date):
     def annually_profit(start_value, end_value, start_date, end_date):
         """
         细节：earn是一个百分比，不是收益/投入，而是终值/投入，这个是年化公式要求的，
@@ -33,10 +33,8 @@ def calculate_metrics(df_portfolio, df_baseline, df_fund, broker,args):
     stat["定投起始"] = date2str(broker.df_trade_history.iloc[0].target_date)
     stat["定投结束"] = date2str(broker.df_trade_history.iloc[-1].target_date)
 
-    start_value = args.amount
+    start_value = initial_amount
     end_value = broker.get_total_value() - broker.total_commission
-    start_date = df_baseline.index.min()
-    end_date = df_baseline.index.max()
     stat["期初资金"] = start_value
     stat["期末现金"] = broker.total_cash
     stat["期末持仓"] = broker.get_total_position_value()
@@ -60,7 +58,7 @@ def calculate_metrics(df_portfolio, df_baseline, df_fund, broker,args):
     # 总本金投入
     invest, _, _ = roe.calculate(broker.df_trade_history, broker)
     stat["总本金"] = invest
-    stat["资金利用率"] = invest / args.amount
+    stat["资金利用率"] = invest / initial_amount
 
     stat["夏普比率"] = metrics.sharp_ratio(df_portfolio.total_value.pct_change())
     stat["索提诺比率"] = metrics.sortino_ratio(df_portfolio.total_value.pct_change())

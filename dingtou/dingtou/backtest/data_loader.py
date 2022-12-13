@@ -34,12 +34,10 @@ def load_index(index_code):
     return df_stock_index
 
 
-def load_funds(codes, ma_days):
+def load_funds(codes):
     data = {}
     for code in codes:
         df_fund = load_fund(code)
-        df_fund['ma'] = talib.SMA(df_fund.close, timeperiod=ma_days)
-        df_fund['ma_net_value'] = talib.SMA(df_fund.net_value, timeperiod=ma_days)
         data[code] = df_fund
     return data
 

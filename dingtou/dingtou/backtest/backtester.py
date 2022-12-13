@@ -1,6 +1,8 @@
 from datetime import datetime
 import logging
 
+from dingtou.backtest.utils import str2date
+
 logger = logging.getLogger(__name__)
 
 class BackTester():
@@ -18,8 +20,8 @@ class BackTester():
         """
         # 交易代理商
         self.broker = broker
-        self.start_date = start_date
-        self.end_date = end_date
+        self.start_date = str2date(start_date)
+        self.end_date = str2date(end_date)
         self.buy_day = buy_day
 
     def set_broker(self, b):
@@ -63,13 +65,14 @@ class BackTester():
         for i, today in enumerate(self.dates):
 
             # 防止提早启动回测，只在start_date才开始，到end_date就结束
-            if today < datetime.strptime(self.start_date, "%Y%m%d"): continue
-            if today > datetime.strptime(self.end_date, "%Y%m%d"): return
+            if today < self.start_date: continue
+            if today > self.end_date: return
 
             # 触发当日的策略执行
             if i == len(self.dates) - 1: continue  # 防止越界
+            # 是当天价来交易，还是以下一个交易日来交易
             trade_day = today if self.buy_day=='today' else self.dates[i + 1]
-            self.strategy.next(today=today, trade_date=today)
+            self.strategy.next(today=today, trade_date=trade_day)
 
             # 触发交易代理的执行，这里才会真正的执行交易
             self.broker.run(today)
