@@ -4,12 +4,12 @@ import logging
 import pandas as pd
 from pandas import DataFrame
 
-from dingtou.backtest import utils
+from dingtou.utils import utils
 from dingtou.backtest.backtester import BackTester
 from dingtou.backtest.broker import Broker
-from dingtou.backtest.data_loader import load_fund, load_index, load_funds, load_stocks
+from dingtou.backtest.data_loader import load_fund, load_index, load_funds
 from dingtou.backtest.stat import calculate_metrics
-from dingtou.backtest.utils import str2date
+from dingtou.utils.utils import str2date
 from dingtou.pyramid_v2.plot import plot
 from dingtou.pyramid_v2.position_calculator import PositionCalculator
 from dingtou.pyramid_v2.pyramid_v2_strategy import PyramidV2Strategy
@@ -83,6 +83,7 @@ def main(args, stat_file_name="debug/stat.csv", plot_file_subfix='one'):
     # 回测之后再过滤，会担心把start_date之前的也回测了，
     # 为何开始用全部数据，是因为要算移动平均，需要之前的历史数据
     # 而最后要显示和统计的时候，就需要只保留你关心的期间了
+
     start_date = str2date(args.start_date)
     end_date = str2date(args.end_date)
     df_baseline = df_baseline[(df_baseline.index > start_date) & (df_baseline.index < end_date)]

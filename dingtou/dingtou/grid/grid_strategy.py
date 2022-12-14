@@ -1,8 +1,8 @@
 import talib
 
-from dingtou.backtest import utils
+from dingtou.utils import utils
 from dingtou.backtest.strategy import Strategy
-from dingtou.backtest.utils import get_value, date2str
+from dingtou.utils.utils import get_value, date2str
 import logging
 
 logger = logging.getLogger(__name__)

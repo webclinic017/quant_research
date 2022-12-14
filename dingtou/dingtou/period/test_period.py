@@ -1,23 +1,18 @@
 import argparse
 import logging
-from collections import OrderedDict
 
-from dateutil.relativedelta import relativedelta
 from pandas import DataFrame
 
-from dingtou.backtest import utils
+from dingtou.utils import utils
 from dingtou.backtest.backtester import BackTester
 from dingtou.backtest.broker import Broker
 from dingtou.backtest.data_loader import load_index,load_fund
 from dingtou.backtest.stat import calculate_metrics
 from dingtou.period.period_strategy import PeriodStrategy
-from dingtou.pyramid import roe
-from research.utils import date2str, str2date, day2week
+from research.utils import str2date, day2week
 
 from dingtou.period.cash_distribution import AverageCashDistribute
 
-
-from dingtou.backtest import metrics
 import matplotlib.pyplot as plt
 
 logger = logging.getLogger(__name__)

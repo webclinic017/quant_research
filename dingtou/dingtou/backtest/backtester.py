@@ -1,7 +1,6 @@
-from datetime import datetime
 import logging
 
-from dingtou.backtest.utils import str2date
+from dingtou.utils.utils import str2date
 
 logger = logging.getLogger(__name__)
 
@@ -20,8 +19,12 @@ class BackTester():
         """
         # 交易代理商
         self.broker = broker
-        self.start_date = str2date(start_date)
-        self.end_date = str2date(end_date)
+
+        if type(start_date)==str: start_date = str2date(start_date)
+        if type(end_date) == str: end_date = str2date(end_date)
+        self.start_date = start_date
+        self.end_date = end_date
+
         self.buy_day = buy_day
 
     def set_broker(self, b):

@@ -2,7 +2,7 @@ import numpy as np
 import talib
 import logging
 from dingtou.backtest.strategy import Strategy
-from dingtou.backtest.utils import get_value, fit, date2str
+from dingtou.utils.utils import get_value, fit, date2str
 
 logger = logging.getLogger(__name__)
 

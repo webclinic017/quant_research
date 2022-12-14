@@ -6,12 +6,12 @@ import pandas as pd
 import matplotlib.dates as mdates
 from pandas import DataFrame
 
-from dingtou.backtest import utils
+from dingtou.utils import utils
 from dingtou.backtest.backtester import BackTester
 from dingtou.backtest.broker import Broker
 from dingtou.backtest.data_loader import load_fund, load_index, load_funds, load_stocks
 from dingtou.backtest.stat import calculate_metrics
-from dingtou.backtest.utils import str2date
+from dingtou.utils.utils import str2date
 from dingtou.pyramid.grid_calculator import calculate_grid_values_by_statistics
 from dingtou.pyramid.pyramid_policy import PyramidPolicy
 from dingtou.pyramid.pyramid_strategy import PyramidStrategy

@@ -4,7 +4,7 @@ from dateutil.relativedelta import relativedelta
 
 from dingtou.backtest import metrics
 from dingtou.pyramid import roe
-from dingtou.backtest.utils import date2str
+from dingtou.utils.utils import date2str
 
 logger = logging.getLogger(__name__)
 

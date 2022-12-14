@@ -1,56 +1,75 @@
 import argparse
 
-import numpy as np
+import pandas as pd
 from pandas import DataFrame
 from tabulate import tabulate
 
-from dingtou.backtest import utils
-from dingtou.pyramid.pyramid import main
+from dingtou.pyramid_v2.pyramid_v2 import main
+from dingtou.utils import utils
+from dingtou.utils.utils import parallel_run, split_periods, AttributeDict, date2str, str2date
 
-class AttributeDict(dict):
-    __getattr__ = dict.__getitem__
-    __setattr__ = dict.__setitem__
-    __delattr__ = dict.__delitem__
+CORE_NUM = 16
 
-# python -m dingtou.pyramid.test_compose
-if __name__ == '__main__':
-    utils.init_logger()
+
+def backtest(period, code):
+    start_date = period[0]
+    end_date = period[1]
     args = AttributeDict()
-    args.start_date = '20140101'
-    args.end_date = '20230101'
-    args.amount = 2000000
+    args.start_date = start_date
+    args.end_date = end_date
+    args.amount = 200000  # 20万
     args.baseline = 'sh000001'
-    args.grid_height = 0.01
-    args.average_period = 480
-    args.code = "510500"
-    args.overlap_grid = 3
+    args.grid_height = 0.01  # 格子高度1%
+    args.ma = -480  # 使用回看2年的均线=(最高+最低)/2
+    args.code = code
+    args.grid_share = 1000  # 基准是1000份
+    args.overlap = 0  # 没有对敲区
 
-    df = DataFrame()
-    for fund_code in funds:
-        args.code = fund_code
-        df1 = main(args,plot_file_subfix='one')
-        df = df.append(df1,ignore_index=True)
-
-    df.to_csv("debug/stat_one.csv")
+    df = main(args, plot_file_subfix=f'{code}_{start_date}_{end_date}')
+    return df
 
 
-    df = main(args,stat_file_name = "debug/stat_roll.csv",plot_file_subfix='roll')
-    df = df[["基金代码", "投资起始", "投资结束", "期初资金", "期末现金", "期末持仓", "期末总值", "组合收益率",
-                  "组合年化", "资金利用率", "基准收益", "基金收益", "买次", "卖次"]]
-    df = df[["基金代码", "组合收益率","组合年化","期末现金", "期末持仓","基准收益", "基金收益", "买次", "卖次"]]
-    print(tabulate(df, headers='keys', tablefmt='psql'))
-
+def run(code, start_date, end_date, years, roll_months):
     """
     测试和优化方案：
-    1、每次投入总额、
-    
-    测试周期：  2013.3~2022.12（10年）
-    测试窗口    2年、3年、4年、5年
+    测试周期：  2013.1~2023.1（10年）
+    测试窗口    2年、3年、5年
     滚动窗口    3个月，每年4个月
-    测试数量：  8x4+7x4+6x4+5x4= 32+28+24+20 = 104个测试（ 剩余年数 * 年移动4次）
-
-    待优化参数：
-    - 每次买入份数：
-    
-       
+    测试数量：  8x4+7x4+5x4= 32+28+20 = 80个测试（ 剩余年数 * 年移动4次）
     """
+
+    # 从2013~2015年，每隔3个月，向后滚动2、3、5年的一个周期
+    ranges = []
+    for year in [int(y) for y in args.years.split(",")]:
+        ranges += split_periods(start_date=str2date(start_date),
+                                end_date=str2date(end_date),
+                                window_years=year,
+                                roll_stride_months=roll_months)
+
+    # 并行跑
+    ranges = ranges[:3]
+    dfs = parallel_run(core_num=3,
+                       iterable=ranges,
+                       func=backtest,
+                       code=code)
+
+    df = pd.concat(dfs)
+
+    df.to_csv(f"debug/{code}_{start_date}_{end_date}_{years}_{roll_months}.csv")
+
+
+# python -m dingtou.pyramid_v2.research1 -c 510500
+if __name__ == '__main__':
+    utils.init_logger()
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-s', '--start_date', type=str, default="20150101", help="开始日期")
+    parser.add_argument('-e', '--end_date', type=str, default="20221201", help="结束日期")
+    parser.add_argument('-c', '--code', type=str, help="股票代码")
+    parser.add_argument('-y', '--years', type=str, default='2,3,5', help="测试年份")
+    parser.add_argument('-r', '--roll', type=int, default=3, help="滚动月份")
+    args = parser.parse_args()
+    run(args.code,
+         args.start_date,
+         args.end_date,
+         args.years,
+         args.roll)

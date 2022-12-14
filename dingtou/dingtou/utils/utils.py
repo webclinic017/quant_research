@@ -3,6 +3,19 @@ import datetime
 import numpy as np
 import logging
 
+import functools
+
+import dask
+from dask import compute, delayed
+from dateutil.relativedelta import relativedelta
+
+logger = logging.getLogger(__name__)
+
+class AttributeDict(dict):
+    __getattr__ = dict.__getitem__
+    __setattr__ = dict.__setitem__
+    __delattr__ = dict.__delitem__
+
 
 def get_value(df, key):
     try:
@@ -17,6 +30,55 @@ def date2str(date, format="%Y%m%d"):
 
 def str2date(s_date, format="%Y%m%d"):
     return datetime.datetime.strptime(s_date, format)
+
+
+def split_periods(start_date, end_date, window_years, roll_stride_months):
+    """
+        用来生成一个日期滚动数组，每个元素是开始日期和结束日期，每隔一个周期向前滚动
+
+        比如:split('20120605','20151215',window_years=2,roll_stride_months=3)
+        2012-06-15 00:00:00 2014-06-15 00:00:00
+        2012-09-15 00:00:00 2014-09-15 00:00:00
+        2012-12-15 00:00:00 2014-12-15 00:00:00
+        2013-03-15 00:00:00 2015-03-15 00:00:00
+        2013-06-15 00:00:00 2015-06-15 00:00:00
+        2013-09-15 00:00:00 2015-09-15 00:00:00
+        2013-12-15 00:00:00 2015-12-15 00:00:00
+
+        :param start_date:
+        :param end_date:
+        :param window_years:
+        :param roll_stride_months:
+        :return:
+        """
+
+    all_ranges = []
+
+    # 第一个范围
+    start_roll_date = start_date
+    end_roll_date = start_date + relativedelta(years=window_years)
+    if end_roll_date > end_date:
+        end_roll_date = end_date
+
+    all_ranges.append([date2str(start_roll_date),
+                       date2str(end_roll_date)])
+
+    # while滚动期间的结束日期end_roll_date，小于总的结束日期end_date
+    # 滚动获取范围
+    start_roll_date = start_roll_date + relativedelta(months=roll_stride_months)
+    while end_roll_date < end_date:
+        # 滚动
+        end_roll_date = start_roll_date + relativedelta(years=window_years)
+
+        if end_roll_date > end_date:
+            end_roll_date = end_date
+
+        all_ranges.append([date2str(start_roll_date),
+                           date2str(end_roll_date)])
+
+        start_roll_date = start_roll_date + relativedelta(months=roll_stride_months)
+
+    return all_ranges
 
 
 def fit(data_x, data_y):
@@ -128,3 +190,26 @@ def day2week(df):
         df_result = df_result.droplevel(level=0)  # 多出一列datetime，所以要drop掉
     df_result['pct_chg'] = df_result.close.pct_change()
     return df_result
+
+
+def parallel_run(core_num, iterable, func, *args, **kwargs):
+    """
+    使用dask这个并行框架，来加速我们的函数并行运行
+    :param CORE_NUM:
+    :param iterable:
+    :param func:
+    :param args:
+    :param kwargs:
+    :return:
+    """
+
+    with dask.config.set(scheduler='processes', num_workers=core_num):
+        # 偏函数partial：https://www.liaoxuefeng.com/wiki/1016959663602400/1017454145929440
+        logger.debug("并行运行函数%s,参数：%r;%r",func.__name__,args,kwargs)
+        func_partial = functools.partial(func, *args, **kwargs)
+
+        # dask：https://juejin.cn/post/7083079485230153764
+        # delayed是包装一下函数，compute是真正并行执行
+        result = compute([delayed(func_partial)(i) for i in iterable])[0]
+
+        return result

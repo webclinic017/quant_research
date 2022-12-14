@@ -1,9 +1,7 @@
-import argparse
-
 from pandas import DataFrame
 from tabulate import tabulate
 
-from dingtou.backtest import utils
+from dingtou.utils import utils
 from dingtou.pyramid.pyramid import main
 
 class AttributeDict(dict):

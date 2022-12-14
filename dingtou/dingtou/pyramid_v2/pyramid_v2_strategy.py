@@ -1,6 +1,6 @@
-from dingtou.backtest import utils
+from dingtou.utils import utils
 from dingtou.backtest.strategy import Strategy
-from dingtou.backtest.utils import get_value, date2str
+from dingtou.utils.utils import get_value, date2str
 import logging
 import talib
 import pandas as pd
@@ -53,7 +53,9 @@ class PyramidV2Strategy(Strategy):
         self.last_grid_position_dict = {}
 
         self.ma_days = ma_days
-        self.end_date = utils.str2date(end_date)
+
+        if type(end_date)==str: end_date = utils.str2date(end_date)
+        self.end_date = end_date
 
         # 统计用
         self.buy_ok = 0
