@@ -39,9 +39,19 @@ def calculate_metrics(df_portfolio, df_baseline, df_fund, broker,initial_amount,
     stat["期末现金"] = broker.total_cash
     stat["期末持仓"] = broker.get_total_position_value()
     stat["期末总值"] = broker.get_total_value()
-    stat["组合收益"] = end_value - start_value
-    stat["组合收益率"] = end_value / start_value - 1
+    stat["组合盈利"] = end_value - start_value
+    stat["组合收益"] = end_value / start_value - 1
     stat["组合年化"] = annually_profit(start_value, end_value, start_date, end_date)
+
+    start_value = df_baseline.iloc[-1].close
+    end_value = df_baseline.iloc[0].close
+    stat["基准收益"] = end_value / start_value - 1
+    stat["基准年化"] = annually_profit(start_value, end_value, start_date, end_date)
+
+    start_value = df_fund.iloc[-1].close
+    end_value = df_fund.iloc[0].close
+    stat["基金收益"] = end_value / start_value - 1
+    stat["基金年化"] = annually_profit(start_value, end_value, start_date, end_date)
 
     """
     接下来考察，仅投资用的现金的收益率，不考虑闲置资金了
@@ -64,9 +74,6 @@ def calculate_metrics(df_portfolio, df_baseline, df_fund, broker,initial_amount,
     stat["索提诺比率"] = metrics.sortino_ratio(df_portfolio.total_value.pct_change())
     stat["卡玛比率"] = metrics.calmar_ratio(df_portfolio.total_value.pct_change())
     stat["最大回撤"] = metrics.max_drawback(df_portfolio.total_value.pct_change())
-
-    stat["基准收益"] = metrics.total_profit(df_baseline)
-    stat["基金收益"] = metrics.total_profit(df_fund)
 
     code = df_fund.iloc[0].code
 

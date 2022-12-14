@@ -1,5 +1,7 @@
 import argparse
-
+import datetime
+import time
+import logging
 import pandas as pd
 from pandas import DataFrame
 from tabulate import tabulate
@@ -9,6 +11,8 @@ from dingtou.utils import utils
 from dingtou.utils.utils import parallel_run, split_periods, AttributeDict, date2str, str2date
 
 CORE_NUM = 16
+
+logger = logging.getLogger(__name__)
 
 
 def backtest(period, code):
@@ -67,8 +71,12 @@ if __name__ == '__main__':
     parser.add_argument('-y', '--years', type=str, default='2,3,5', help="测试年份")
     parser.add_argument('-r', '--roll', type=int, default=3, help="滚动月份")
     args = parser.parse_args()
+
+    start_time = time.time()
     run(args.code,
-         args.start_date,
-         args.end_date,
-         args.years,
-         args.roll)
+        args.start_date,
+        args.end_date,
+        args.years,
+        args.roll)
+
+    logger.debug("耗时: %s ", str(datetime.timedelta(seconds=time.time() - start_time)))
