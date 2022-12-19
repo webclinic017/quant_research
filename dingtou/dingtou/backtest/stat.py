@@ -43,13 +43,13 @@ def calculate_metrics(df_portfolio, df_baseline, df_fund, broker,initial_amount,
     stat["组合收益"] = end_value / start_value - 1
     stat["组合年化"] = annually_profit(start_value, end_value, start_date, end_date)
 
-    start_value = df_baseline.iloc[-1].close
-    end_value = df_baseline.iloc[0].close
+    start_value = df_baseline.iloc[0].close
+    end_value = df_baseline.iloc[-1].close
     stat["基准收益"] = end_value / start_value - 1
     stat["基准年化"] = annually_profit(start_value, end_value, start_date, end_date)
 
-    start_value = df_fund.iloc[-1].close
-    end_value = df_fund.iloc[0].close
+    start_value = df_fund.iloc[0].close
+    end_value = df_fund.iloc[-1].close
     stat["基金收益"] = end_value / start_value - 1
     stat["基金年化"] = annually_profit(start_value, end_value, start_date, end_date)
 

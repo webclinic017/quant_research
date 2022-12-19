@@ -240,8 +240,9 @@ class Broker:
         # 我的总现金量的变多了
         old_total_cash = self.total_cash
         self.total_cash += amount
-        logger.debug("总现金：%2.f=>%.2f元，总持仓：%.2f元，总市值：%.2f元",
+        logger.debug("总现金：%.2f+%.2f=>%.2f元，其中，总持仓：%.2f元，总市值：%.2f元",
                      old_total_cash,
+                     amount,
                      self.total_cash,
                      self.get_total_position_value(),
                      self.get_total_value())
@@ -252,8 +253,9 @@ class Broker:
         old_total_cash = self.total_cash
         self.total_cash -= amount
 
-        logger.debug("总现金：%2.f=>%.2f，总持仓：%.2f，总市值：%.2f",
+        logger.debug("总现金：%.2f-%.2f=>%.2f元，其中，总持仓：%.2f元，总市值：%.2f元",
                      old_total_cash,
+                     amount,
                      self.total_cash,
                      self.get_total_position_value(),
                      self.get_total_value())
@@ -344,6 +346,8 @@ class Broker:
             # 记录每只基金的最后成本
             costs.append(df_market_value.iloc[-1].cost.item())
 
+        print("total_position_value========>",total_position_value)
+
         # 按照持仓份数，来计算平均成本
         total_position = sum(total_positions)
         if total_position == 0:
@@ -353,9 +357,6 @@ class Broker:
             cost = sum([c * w for c, w in zip(costs, weights)])
 
         # 更新记录
-        # import pdb;
-        # pdb.set_trace()
-        print("position/cash:",total_position_value , self.total_cash)
         self.df_total_market_value = self.df_total_market_value.append({
             'date': date,
             'total_value': total_position_value + self.total_cash,  # 总市值
@@ -387,14 +388,18 @@ class Broker:
             # logger.debug(" %s 日基金 %s 的数据，市值%.1f = 价格%.1f * 持仓%.1f ",
             #              date, code, market_value, series_fund.net_value, position.position)
         except KeyError:
-            logger.warning(" %s 日没有基金 %s 的数据，当天它的市值计作 0 ", date, fund_code)
+            logger.warning(" %s 日没有基金 %s 的数据，使用其最后的市值未最新市值", date2str(date), fund_code)
             price = 0
 
         # 当前仓位（已经更新了今日的了）
         position = self.positions[fund_code].position
 
         # 当前市值
-        fund_position_value = self.positions[fund_code].position * price
+        if price==0:
+            # 如果当天没有价格，就使用前一日的市场价值做为最新
+            fund_position_value = self.fund_market_dict[fund_code].iloc[-1].position_value
+        else:
+            fund_position_value = self.positions[fund_code].position * price
 
         # 当前成本
         cost = self.positions[fund_code].cost

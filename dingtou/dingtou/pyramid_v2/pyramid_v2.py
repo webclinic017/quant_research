@@ -3,6 +3,7 @@ import logging
 
 import pandas as pd
 from pandas import DataFrame
+from tabulate import tabulate
 
 from dingtou.utils import utils
 from dingtou.backtest.backtester import BackTester
@@ -89,25 +90,40 @@ def main(args, stat_file_name="debug/stat.csv", plot_file_subfix='one'):
     df_baseline = df_baseline[(df_baseline.index > start_date) & (df_baseline.index < end_date)]
 
     df_stat = DataFrame()
+    # 如果是多只基金一起投资，挨个统计他们各自的情况
     for code, df_fund in fund_dict.items():
         df_fund = df_fund[(df_fund.index > start_date) & (df_fund.index < end_date)]
         df_portfolio = df_portfolio[(df_portfolio.index > start_date) & (df_portfolio.index < end_date)]
 
         if broker.positions.get(df_fund.iloc[0].code, None) is None:
             logger.warning("基金[%s]未发生任何一笔交易", df_fund.iloc[0].code)
+
+        # 统计这只基金的收益情况
         stat = calculate_metrics(df_portfolio, df_baseline, df_fund, broker, args.amount,start_date,end_date)
+
         df_stat = df_stat.append(stat, ignore_index=True)
         df_buy_trades = broker.df_trade_history[
             (broker.df_trade_history.code == code) & (broker.df_trade_history.action == 'buy')]
         df_sell_trades = broker.df_trade_history[
             (broker.df_trade_history.code == code) & (broker.df_trade_history.action == 'sell')]
 
+        # 每只基金都给他单独画一个收益图
         plot(df_baseline, df_fund, df_portfolio, df_buy_trades, df_sell_trades, plot_file_subfix)
 
+    # 打印交易记录
+    logger.info("交易记录：")
+    print(tabulate(broker.df_trade_history, headers='keys', tablefmt='psql'))
+
+    # 打印期末持仓情况
+    logger.info("期末持仓：")
+    df = DataFrame([p.to_dict() for code, p in broker.positions.items()])
+    print(tabulate(df, headers='keys', tablefmt='psql'))
+
+    # 把统计结果df_stat写入到csv文件
+    logger.info("交易统计：")
     with pd.option_context('display.max_rows', 100, 'display.max_columns', 100):
-        from tabulate import tabulate
         # df = df_stat[["基金代码","投资起始","投资结束","期初资金","期末现金","期末持仓","期末总值","组合收益率","组合年化","本金投入","本金投入","资金利用率","基准收益","基金收益","买次","卖次","持仓","成本","现价"]]
-        df = df_stat[["基金代码", "投资起始", "投资结束", "期初资金", "期末现金", "期末持仓", "期末总值", "组合收益率",
+        df = df_stat[["基金代码", "投资起始", "投资结束", "期初资金", "期末现金", "期末持仓", "期末总值", "组合收益",
                       "组合年化", "资金利用率", "基准收益", "基金收益", "买次", "卖次"]]
         print(tabulate(df, headers='keys', tablefmt='psql'))
     df_stat.to_csv(stat_file_name)
@@ -115,16 +131,21 @@ def main(args, stat_file_name="debug/stat.csv", plot_file_subfix='one'):
 
 
 """
+# 手工测试目前最优
 python -m dingtou.pyramid_v2.pyramid_v2 \
--c 510500 \
--s 20190101 \
+-c 510500,510310,510050 \
+-s 20150101 \
 -e 20230101 \
 -b sh000001 \
--a 200000 \
--m -720 \
--gs 100 \
+-a 500000 \
+-m -480 \
+-gs 1000 \
 -gh 0.01 \
--o 3
+-o 0
+
+# -m 480， -gs 1000， -a 50万，这几个组合是比较最优的了
+
+["510050","510310","510500","512000","512560","512600"]
 
 挑选选择：1、时间足够长；2、价格不是很贵（未拆分）：
 - 华夏上证50ETF 510050  / 2014
@@ -136,7 +157,7 @@ python -m dingtou.pyramid_v2.pyramid_v2 \
 - 嘉实中证主要消费ETF 512600  / 2014
 """
 if __name__ == '__main__':
-    utils.init_logger()
+    utils.init_logger(file=True)
 
     # 获得参数
     parser = argparse.ArgumentParser()

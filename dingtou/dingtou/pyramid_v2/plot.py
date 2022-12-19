@@ -10,6 +10,8 @@ def plot(df_baseline, df_fund, df_portfolio, df_buy_trades, df_sell_trades, plot
     code = df_fund.iloc[0].code
     fig = plt.figure(figsize=(50, 10), dpi=(200))
 
+    ################ 画第一张图 ################
+
     # 设置基准X轴
     ax_baseline = fig.add_subplot(211)
     ax_baseline.grid()
@@ -32,6 +34,9 @@ def plot(df_baseline, df_fund, df_portfolio, df_buy_trades, df_sell_trades, plot
     h_fund_accumulate, = ax_fund_accumulate.plot(df_fund.index, df_fund.close, 'b', linewidth=2)
     # 画累计净值基金均线
     h_fund_sma, = ax_fund_accumulate.plot(df_fund.index, df_fund.ma, color='g', linestyle='--', linewidth=1)
+    # 额外画一个年线，来参考用
+    if 'ma242' in df_fund.columns:
+        ax_fund_accumulate.plot(df_fund.index, df_fund.ma242, color='#7FFFAA', linestyle='--', linewidth=0.5)
     # 画买卖信号
     ax_fund_accumulate.scatter(df_buy_trades.actual_date, df_buy_trades.price, marker='^', c='r', s=40)
     # 不一定有卖
@@ -54,7 +59,8 @@ def plot(df_baseline, df_fund, df_portfolio, df_buy_trades, df_sell_trades, plot
                labels=['投资组合', '成本线', '累计净值', '累计净值均线'],
                loc='best')
 
-    ###################################################
+    ################ 画第二张图 ################
+    # 画：'总市值', '持仓', '现金'
 
     ax_baseline = fig.add_subplot(212)
     ax_baseline.grid()

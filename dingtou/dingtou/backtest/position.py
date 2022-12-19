@@ -1,3 +1,6 @@
+from dingtou.utils.utils import date2str
+
+
 class Position:
     """
     用来定义持有的仓位
@@ -22,3 +25,12 @@ class Position:
             self.cost = new_value / self.position
         else:
             self.position += position
+
+    def to_dict(self):
+        return {
+            'code': self.code,
+            'update_date': date2str(self.update_date),
+            'cost': self.cost,
+            'position': self.position,
+            'cost_amount': self.cost * self.position
+        }

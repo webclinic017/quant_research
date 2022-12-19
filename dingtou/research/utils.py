@@ -1,7 +1,10 @@
 import datetime
-
+import os
+import akshare as ak
 import numpy as np
 import logging
+import pandas as pd
+from pandas import DataFrame
 
 
 def get_value(df, key):
@@ -135,3 +138,18 @@ def day2week(df):
         df_result = df_result.droplevel(level=0)  # 多出一列datetime，所以要drop掉
     df_result['pct_chg'] = df_result.close.pct_change()
     return df_result
+
+
+def load_fund(fund_code):
+    fund_file = f"{fund_code}.csv"
+    if not os.path.exists(f"../data/{fund_code}.csv"):
+        df_fund = ak.fund_open_fund_info_em(fund=fund_code, indicator="累计净值走势")
+        df_fund.to_csv(fund_file)
+    else:
+        df_fund = pd.read_csv(fund_file)
+        df_fund['净值日期'] = pd.to_datetime(df_fund['净值日期'], format='%Y-%m-%d')
+    df_fund.rename(columns={'净值日期': 'date', '累计净值': 'close'}, inplace=True)
+    df_fund = df_fund.set_index('date')
+    df_fund['code'] = fund_code  # 都追加一个code字段
+
+    return df_fund

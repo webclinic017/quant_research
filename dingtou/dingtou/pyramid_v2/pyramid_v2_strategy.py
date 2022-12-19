@@ -76,6 +76,8 @@ class PyramidV2Strategy(Strategy):
                 maxs = talib.MAX(df_daily_fund.close, timeperiod=-self.ma_days)
                 mins = talib.MIN(df_daily_fund.close, timeperiod=-self.ma_days)
                 df_daily_fund['ma'] = (maxs + mins) / 2
+                # 额外画上一个年线参考
+                df_daily_fund['ma242'] = talib.SMA(df_daily_fund.close, timeperiod=242)
             else:
                 # 如果是self.ma_days是正值，用N天的均线
                 df_daily_fund['ma'] = talib.SMA(df_daily_fund.close, timeperiod=self.ma_days)
@@ -115,7 +117,7 @@ class PyramidV2Strategy(Strategy):
         # import pdb;pdb.set_trace()
 
         # 如果在均线下方，且，比上次的还低1~N个格子，那么就买入
-        if current_grid_position < 0 and current_grid_position < last_grid_position:
+        if current_grid_position < 0 and current_grid_position < last_grid_position and current_grid_position<-self.overlap_grid_num:
             # 根据偏离均线幅度，决定购买的份数
             positions = self.policy.calculate(current_grid_position, 'buy')
             # 买入
@@ -135,30 +137,30 @@ class PyramidV2Strategy(Strategy):
                 self.buy_fail += 1
             return
 
-        # 如果在均线下方，且，比上次的还高1~N个格子，且，在对敲(overlap)区，那么就卖出对应的份数
-        if 0 > current_grid_position > last_grid_position and \
-                abs(current_grid_position) < self.overlap_grid_num:
-            positions = self.policy.calculate(current_grid_position, 'sell')
-            if self.broker.sell(s_daily_fund.code, target_date, position=positions):
-                logger.debug(">>[%s]%s均线下方%.1f%%/第%d格,高于上次(第%d格),对敲卖出%.1f份  (对敲) 基===>钱",
-                             date2str(today),
-                             s_daily_fund.code,
-                             s_daily_fund.diff_percent_close2ma * 100,
-                             current_grid_position,
-                             self.last_grid_position_dict[s_daily_fund.code] * 100,
-                             positions)
-                self.last_grid_position_dict[s_daily_fund.code] = current_grid_position
-                self.sell_ok += 1
-            else:
-                if self.broker.positions.get(s_daily_fund.code, None) is not None:
-                    self.sell_fail += 1
-            return
+        # 暂时不对敲了，只在高位区卖出，TODO
+        # # 如果在均线下方，且，比上次的还高1~N个格子，且，在对敲(overlap)区，那么就卖出对应的份数
+        # if 0 > current_grid_position > last_grid_position and \
+        #         abs(current_grid_position) < self.overlap_grid_num:
+        #     positions = self.policy.calculate(current_grid_position, 'sell')
+        #     if self.broker.sell(s_daily_fund.code, target_date, position=positions):
+        #         logger.debug(">>[%s]%s均线下方%.1f%%/第%d格,高于上次(第%d格),对敲卖出%.1f份  (对敲) 基===>钱",
+        #                      date2str(today),
+        #                      s_daily_fund.code,
+        #                      s_daily_fund.diff_percent_close2ma * 100,
+        #                      current_grid_position,
+        #                      self.last_grid_position_dict[s_daily_fund.code] * 100,
+        #                      positions)
+        #         self.last_grid_position_dict[s_daily_fund.code] = current_grid_position
+        #         self.sell_ok += 1
+        #     else:
+        #         if self.broker.positions.get(s_daily_fund.code, None) is not None:
+        #             self.sell_fail += 1
+        #     return
 
         # logger.debug("current:%d,last:%d,diff:%.2f%%",current_grid_position,last_grid_position,diff2last*100)
 
         # 在均线之上，且，超过之前的高度(diff>0)，且，至少超过1个网格(grid_num>=1)，就卖
-        if current_grid_position > last_grid_position and current_grid_position> 0:
-        # if current_grid_position > 0:
+        if current_grid_position > last_grid_position and current_grid_position> 0 and current_grid_position>self.overlap_grid_num:
             positions = self.policy.calculate(current_grid_position, 'sell')
             # 扣除手续费后，下取整算购买份数
             if self.broker.sell(s_daily_fund.code, target_date, position=positions):
