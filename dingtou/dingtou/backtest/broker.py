@@ -346,7 +346,7 @@ class Broker:
             # 记录每只基金的最后成本
             costs.append(df_market_value.iloc[-1].cost.item())
 
-        print("total_position_value========>",total_position_value)
+        # print("total_position_value========>",total_position_value)
 
         # 按照持仓份数，来计算平均成本
         total_position = sum(total_positions)
