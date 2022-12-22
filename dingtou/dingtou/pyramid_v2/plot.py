@@ -4,10 +4,13 @@ import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
 
 from pandas.plotting import table
+
+from dingtou.utils.utils import date2str
+
 logger = logging.getLogger(__name__)
 
 
-def plot(start_date, end_date, broker, df_baseline, df_portfolio, fund_dict, plot_file_subfix, df_stat):
+def plot(start_date, end_date, broker, df_baseline, df_portfolio, fund_dict, df_stat):
     """
     画总图:
     - 总的投资收益图
@@ -98,7 +101,7 @@ def plot(start_date, end_date, broker, df_baseline, df_portfolio, fund_dict, plo
 
     # 保存图片
     fig.tight_layout()
-    fig.savefig(f"debug/report_{plot_file_subfix}.svg", dpi=200, format='svg')
+    fig.savefig(f"debug/report_{date2str(start_date)}_{date2str(end_date)}.svg", dpi=200, format='svg')
 
 
 def plot_fund(fig, row, col, pos, df_fund, df_fund_market_value, df_buy_trades, df_sell_trades):
