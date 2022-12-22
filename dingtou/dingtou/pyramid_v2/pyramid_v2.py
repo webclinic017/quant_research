@@ -63,7 +63,7 @@ def backtest(df_baseline: DataFrame,
     return broker.df_total_market_value, broker
 
 
-def print_trade_details(start_date, end_date, df_baseline, fund_dict, df_portfolio, broker):
+def print_trade_details(start_date, end_date, amount, df_baseline, fund_dict, df_portfolio, broker):
     df_baseline = df_baseline[(df_baseline.index > start_date) & (df_baseline.index < end_date)]
 
     df_stat = DataFrame()
@@ -75,7 +75,7 @@ def print_trade_details(start_date, end_date, df_baseline, fund_dict, df_portfol
             logger.warning("基金[%s]未发生任何一笔交易", df_fund.iloc[0].code)
             continue
         # 统计这只基金的收益情况
-        stat = calculate_metrics(df_portfolio, df_baseline, df_fund, broker, args.amount, start_date, end_date)
+        stat = calculate_metrics(df_portfolio, df_baseline, df_fund, broker, amount, start_date, end_date)
         df_stat = df_stat.append(stat, ignore_index=True)
 
     # 打印交易记录
@@ -125,7 +125,7 @@ def main(args):
     end_date = str2date(args.end_date)
 
     # 打印交易统计和细节
-    df_stat = print_trade_details(start_date, end_date, df_baseline, fund_dict, df_portfolio, broker)
+    df_stat = print_trade_details(start_date, end_date, args.amount, df_baseline, fund_dict, df_portfolio, broker)
 
     # 每只基金都给他单独画一个收益图
     plot(start_date, end_date, broker, df_baseline, df_portfolio, fund_dict, df_stat)
