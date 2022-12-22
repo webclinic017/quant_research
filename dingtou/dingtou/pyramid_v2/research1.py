@@ -29,7 +29,7 @@ def backtest(period, code):
     args.grid_share = 1000  # 基准是1000份
     args.quantile_positive = 0.5
     args.quantile_negative = 0.5
-    df = main(args, plot_file_subfix=f'{code}_{start_date}_{end_date}')
+    df = main(args)
     return df
 
 
