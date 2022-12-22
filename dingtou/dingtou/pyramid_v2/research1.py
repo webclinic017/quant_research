@@ -27,8 +27,8 @@ def backtest(period, code):
     args.code = code
     args.grid_height = 0.01  # 格子高度1%
     args.grid_share = 1000  # 基准是1000份
-    args.quantile_positive = 0.5
-    args.quantile_negative = 0.5
+    args.quantile_positive = 0.3
+    args.quantile_negative = 0.3
     args.bank = True
     df = main(args)
     return df
