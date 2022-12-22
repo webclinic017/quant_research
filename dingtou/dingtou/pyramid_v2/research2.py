@@ -1,10 +1,8 @@
-import argparse
+    import argparse
 import datetime
 import time
 import logging
 import pandas as pd
-from pandas import DataFrame
-from tabulate import tabulate
 
 from dingtou.pyramid_v2.pyramid_v2 import main
 from dingtou.utils import utils
@@ -21,7 +19,7 @@ def backtest(period, code):
     args = AttributeDict()
     args.start_date = start_date
     args.end_date = end_date
-    args.amount = 0  # 0万
+    args.amount = 0  # 20万
     args.baseline = 'sh000001'
     args.ma = -480  # 使用回看2年的均线=(最高+最低)/2
     args.code = code
