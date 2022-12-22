@@ -97,8 +97,9 @@ def main(args, stat_file_name="debug/stat.csv", plot_file_subfix='one'):
     for code, df_fund in fund_dict.items():
         df_fund = df_fund[(df_fund.index > start_date) & (df_fund.index < end_date)]
         df_portfolio = df_portfolio[(df_portfolio.index > start_date) & (df_portfolio.index < end_date)]
-        if broker.positions.get(df_fund.iloc[0].code, None) is None:
+        if len(broker.df_trade_history)==0:
             logger.warning("基金[%s]未发生任何一笔交易", df_fund.iloc[0].code)
+            continue
         # 统计这只基金的收益情况
         stat = calculate_metrics(df_portfolio, df_baseline, df_fund, broker, args.amount, start_date, end_date)
         df_stat = df_stat.append(stat, ignore_index=True)

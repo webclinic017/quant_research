@@ -51,6 +51,7 @@ def run(code, start_date, end_date, years, roll_months):
                                 roll_stride_months=roll_months)
 
     # 并行跑
+    # debug
     dfs = parallel_run(core_num=CORE_NUM,
                        iterable=ranges,
                        func=backtest,
