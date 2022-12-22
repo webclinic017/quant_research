@@ -21,7 +21,7 @@ def backtest(period, code):
     args = AttributeDict()
     args.start_date = start_date
     args.end_date = end_date
-    args.amount = 200000  # 20万
+    args.amount = 0  # 20万
     args.baseline = 'sh000001'
     args.ma = -480  # 使用回看2年的均线=(最高+最低)/2
     args.code = code
@@ -29,6 +29,7 @@ def backtest(period, code):
     args.grid_share = 1000  # 基准是1000份
     args.quantile_positive = 0.5
     args.quantile_negative = 0.5
+    args.bank = True
     df = main(args)
     return df
 
@@ -63,6 +64,7 @@ def run(code, start_date, end_date, years, roll_months):
 
 
 # python -m dingtou.pyramid_v2.research1 -c 510500
+# python -m dingtou.pyramid_v2.research1 -c 510500 -s 20180101 -e 20200101 -y 2 -r 12
 if __name__ == '__main__':
     utils.init_logger()
     parser = argparse.ArgumentParser()

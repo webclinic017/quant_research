@@ -2,6 +2,7 @@ import logging
 
 from pandas import DataFrame
 import numpy as np
+import math
 
 from dingtou.backtest.position import Position
 from dingtou.backtest.trade import Trade
@@ -35,17 +36,19 @@ class Broker:
     - 持仓：就是我某只股票的仓位
     """
 
-    def __init__(self, cash):
+    def __init__(self, cash, banker):
         """
         :param df_selected_stocks:
         :param df_daily:
         :param df_calendar:
         :param conservative:
         """
+        # 这个banker是为了解决必须要可以持续有钱可以投入的情况，用于计算本金
+        self.banker = banker
         self.total_cash = cash
         self.total_commission = 0
-        self.total_buy_cash = 0  # 总投入资金：就是我每次投入到股市的资金的累计
-        self.total_sell_cash = 0  # 总收益资金：就是我每次卖出后的获利资金
+        # self.total_buy_cash = 0  # 总投入资金：就是我每次投入到股市的资金的累计
+        # self.total_sell_cash = 0  # 总收益资金：就是我每次卖出后的获利资金
 
         self.buy_commission_rate = BUY_COMMISSION_RATE  # 买入默认的手续费
         self.sell_commission_rate = SELL_COMMISSION_RATE  # 卖出默认的手续费
@@ -179,23 +182,34 @@ class Broker:
         buy_value = position * price
         commission = self.buy_commission_rate * buy_value  # 还要算一下佣金，因为上面下取整了
 
-        # 现金不够这次交易了，就退出
-        if buy_value + commission > self.total_cash:
-            import math
-            original_buy = buy_value + commission
-            available_money = self.total_cash / (self.buy_commission_rate + 1)
-            position = available_money / price
-            position = math.floor(position)
-            buy_value = position * price
-            commission = self.buy_commission_rate * buy_value  # 还要算一下佣金，因为上面下取整了
-            logger.warning("[%s]购买基金[%s]，购买金额%.1f>现金%.2f，调整购买金额为%.1f,佣金%.1f,剩余现金%.1f",
-                           date2str(today),
-                           trade.code,
-                           original_buy,
-                           self.total_cash,
-                           buy_value,
-                           commission,
-                           self.total_cash - buy_value - commission)
+        # 现金不够这次交易了，又不能跟银行借钱，那就能买多少买多少
+        if buy_value + commission > self.total_cash and not self.banker:
+                original_buy = buy_value + commission
+                available_money = self.total_cash / (self.buy_commission_rate + 1)
+
+                position = available_money / price
+                position = math.floor(position)
+
+                buy_value = position * price
+                commission = self.buy_commission_rate * buy_value  # 还要算一下佣金，因为上面下取整了
+                logger.warning("[%s]购买基金[%s]，购买金额%.1f>现金%.2f，调整购买金额为%.1f,佣金%.1f,剩余现金%.1f",
+                               date2str(today),
+                               trade.code,
+                               original_buy,
+                               self.total_cash,
+                               buy_value,
+                               commission,
+                               self.total_cash - buy_value - commission)
+
+        if self.banker and buy_value + commission > self.total_cash:
+                self.banker.credit(buy_value + commission - self.total_cash)
+                logger.warning("[%s]购买基金[%s]金额不足，从银行借%.2f元",
+                               date2str(today),
+                               trade.code,
+                               buy_value + commission - self.total_cash)
+
+        # 现金流出：购买的价值 + 佣金，计算买入需要的现金的时候，要加上手续费
+        self.cashout(buy_value + commission)
 
         # 买不到任何一个整数份数，就退出
         if position == 0:
@@ -217,9 +231,6 @@ class Broker:
             self.positions[trade.code].update(today, position, price)
         else:
             self.positions[trade.code] = Position(trade.code, position, price, today)
-
-        # 一种现金流出：购买的价值 + 佣金，计算买入需要的现金的时候，要加上手续费
-        self.cashout(buy_value + commission)
 
         logger.debug("[%s]以[%.2f]价格买入[%s] %d份/%.2f元,佣金[%.2f],总持仓:%.0f份",
                      date2str(today),
@@ -252,6 +263,8 @@ class Broker:
         # 我的总资金量的变化
         old_total_cash = self.total_cash
         self.total_cash -= amount
+        if self.total_cash<0:
+            self.total_cash = 0 # 防止多减
 
         logger.debug("总现金：%.2f-%.2f=>%.2f元，其中，总持仓：%.2f元，总市值：%.2f元",
                      old_total_cash,
@@ -284,7 +297,7 @@ class Broker:
         postion：购买份数
         这俩二选一
         """
-        if amount and amount > self.total_cash:
+        if amount and amount > self.total_cash and self.banker is None: # 如果不能从银行借钱
             logger.warning("创建%s日买入交易单失败：购买金额%.1f>持有现金%.1f", date2str(date), amount,
                            self.total_cash)
             return False

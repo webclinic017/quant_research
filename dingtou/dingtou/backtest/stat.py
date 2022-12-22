@@ -89,9 +89,4 @@ def calculate_metrics(df_portfolio, df_baseline, df_fund, broker,initial_amount,
     stat["现价"] = df_fund.iloc[0].close
     stat["佣金"] = broker.total_commission
 
-    # 打印，暂时注释掉
-    for k, v in stat.items():
-        logger.info("{:>20s} : {}".format(k, v))
-    logger.info("="*80)
-
     return stat

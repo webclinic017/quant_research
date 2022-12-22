@@ -5,6 +5,7 @@ import pandas as pd
 from pandas import DataFrame
 from tabulate import tabulate
 
+from dingtou.backtest.banker import Banker
 from dingtou.utils import utils
 from dingtou.backtest.backtester import BackTester
 from dingtou.backtest.broker import Broker
@@ -24,29 +25,20 @@ stat_file_name = "debug/stat.csv"
 """
 
 
-def backtest(df_baseline: DataFrame,
-             funds_data: dict,
-             start_date,
-             end_date,
-             amount,
-             grid_height,
-             grid_share,
-             quantile_positive,
-             quantile_negative,
-             ma_days):
-    broker = Broker(amount)
+def backtest(df_baseline: DataFrame, funds_data: dict, args):
+    banker = Banker() if args.bank else None
+    broker = Broker(args.amount, banker)
     broker.set_buy_commission_rate(0.0001)  # 参考华宝证券：ETF手续费万1，单笔最低0.2元
     broker.set_sell_commission_rate(0)
-
-    backtester = BackTester(broker, start_date, end_date, buy_day='today')
-    policy = PositionCalculator(grid_share)
+    backtester = BackTester(broker, args.start_date, args.end_date, buy_day='today')
+    policy = PositionCalculator(args.grid_share)
     strategy = PyramidV2Strategy(broker,
                                  policy,
-                                 grid_height,
-                                 quantile_positive,
-                                 quantile_negative,
-                                 ma_days,
-                                 end_date)
+                                 args.grid_height,
+                                 args.quantile_positive,
+                                 args.quantile_negative,
+                                 args.ma,
+                                 args.end_date)
     backtester.set_strategy(strategy)
 
     # 单独调用一个set_data，是因为里面要做特殊处理
@@ -60,12 +52,10 @@ def backtest(df_baseline: DataFrame,
     logger.info("sell ok：%d", strategy.sell_ok)
     logger.info("sell fail：%d", strategy.sell_fail)
 
-    return broker.df_total_market_value, broker
+    return broker.df_total_market_value, broker, banker
 
 
-def print_trade_details(start_date, end_date, amount, df_baseline, fund_dict, df_portfolio, broker):
-    df_baseline = df_baseline[(df_baseline.index > start_date) & (df_baseline.index < end_date)]
-
+def print_trade_details(start_date, end_date, amount, df_baseline, fund_dict, df_portfolio, broker, banker):
     df_stat = DataFrame()
     # 如果是多只基金一起投资，挨个统计他们各自的情况
     for code, df_fund in fund_dict.items():
@@ -76,6 +66,14 @@ def print_trade_details(start_date, end_date, amount, df_baseline, fund_dict, df
             continue
         # 统计这只基金的收益情况
         stat = calculate_metrics(df_portfolio, df_baseline, df_fund, broker, amount, start_date, end_date)
+        stat["借钱总额"] = banker.debt
+        stat["借钱次数"] = banker.debt_num
+
+        # 打印，暂时注释掉
+        for k, v in stat.items():
+            logger.info("{:>20s} : {}".format(k, v))
+        logger.info("=" * 80)
+
         df_stat = df_stat.append(stat, ignore_index=True)
 
     # 打印交易记录
@@ -105,17 +103,10 @@ def main(args):
     # 加载基金数据，标准化列名，close是为了和标准的指数的close看齐
     fund_dict = load_funds(codes=args.code.split(","))
 
-    df_portfolio, broker = backtest(
+    df_portfolio, broker, banker = backtest(
         df_baseline,
         fund_dict,
-        args.start_date,
-        args.end_date,
-        args.amount,
-        args.grid_height,
-        args.grid_share,
-        args.quantile_positive,
-        args.quantile_negative,
-        args.ma)
+        args)
 
     df_portfolio.sort_values('date')
     df_portfolio.set_index('date', inplace=True)
@@ -124,8 +115,21 @@ def main(args):
     start_date = str2date(args.start_date)
     end_date = str2date(args.end_date)
 
+    df_baseline = df_baseline[(df_baseline.index > start_date) & (df_baseline.index < end_date)]
+
     # 打印交易统计和细节
-    df_stat = print_trade_details(start_date, end_date, args.amount, df_baseline, fund_dict, df_portfolio, broker)
+    if banker:
+        amount = banker.debt + args.amount
+    else:
+        amount = args.amount
+    df_stat = print_trade_details(start_date,
+                                  end_date,
+                                  amount,
+                                  df_baseline,
+                                  fund_dict,
+                                  df_portfolio,
+                                  broker,
+                                  banker)
 
     # 每只基金都给他单独画一个收益图
     plot(start_date, end_date, broker, df_baseline, df_portfolio, fund_dict, df_stat)
@@ -134,18 +138,19 @@ def main(args):
 
 
 """
-# 手工测试目前最优
+# 手工测试目前最优 ,512000,512560
 python -m dingtou.pyramid_v2.pyramid_v2 \
--c 510500,512000,512560 \
+-c 510500 \
 -s 20150101 \
 -e 20230101 \
 -b sh000001 \
--a 500000 \
+-a 200000 \
 -m -480 \
 -gs 1000 \
 -gh 0.01 \
 -qp 0.5 \
--qn 0.5
+-qn 0.5 \
+-bk
 
 # -m 480， -gs 1000， -a 50万，这几个组合是比较最优的了
 
@@ -170,7 +175,8 @@ if __name__ == '__main__':
     parser.add_argument('-e', '--end_date', type=str, default="20221201", help="结束日期")
     parser.add_argument('-b', '--baseline', type=str, default=None, help="基准指数，这个策略里就是基金本身")
     parser.add_argument('-c', '--code', type=str, help="股票代码")
-    parser.add_argument('-a', '--amount', type=int, default=500000, help="投资金额，默认50万")
+    parser.add_argument('-a', '--amount', type=int, default=200000, help="投资金额，默认50万")
+    parser.add_argument('-bk', '--bank', action='store_true')
     parser.add_argument('-m', '--ma', type=int, default=10, help=">0:间隔ma天的移动均线,<0:回看的最大最小值的均值")
     parser.add_argument('-gh', '--grid_height', type=float, default=0.01, help="格子的高度，百分比，默认1%")
     parser.add_argument('-gs', '--grid_share', type=int, default=100, help="每格子的基础份额")
@@ -178,5 +184,6 @@ if __name__ == '__main__':
     parser.add_argument('-qp', '--quantile_positive', type=float, default=0.5, help="百分数区间")
 
     args = parser.parse_args()
+    print(args)
     logger.info(args)
     main(args)
