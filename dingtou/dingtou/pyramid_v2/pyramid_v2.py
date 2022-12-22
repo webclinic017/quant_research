@@ -63,7 +63,7 @@ def backtest(df_baseline: DataFrame,
     return broker.df_total_market_value, broker
 
 
-def print_trade_details(start_date, end_date, df_baseline, fund_dict, broker):
+def print_trade_details(start_date, end_date, df_baseline, fund_dict, df_portfolio, broker):
     df_baseline = df_baseline[(df_baseline.index > start_date) & (df_baseline.index < end_date)]
 
     df_stat = DataFrame()
@@ -125,7 +125,7 @@ def main(args):
     end_date = str2date(args.end_date)
 
     # 打印交易统计和细节
-    df_stat = print_trade_details(start_date, end_date, df_baseline, fund_dict, broker)
+    df_stat = print_trade_details(start_date, end_date, df_baseline, fund_dict, df_portfolio, broker)
 
     # 每只基金都给他单独画一个收益图
     plot(start_date, end_date, broker, df_baseline, df_portfolio, fund_dict, df_stat)
