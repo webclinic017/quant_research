@@ -17,6 +17,8 @@ from dingtou.pyramid_v2.pyramid_v2_strategy import PyramidV2Strategy
 
 logger = logging.getLogger(__name__)
 
+stat_file_name = "debug/stat.csv"
+
 """
 再test_timing基础上做的改进
 """
@@ -61,7 +63,43 @@ def backtest(df_baseline: DataFrame,
     return broker.df_total_market_value, broker
 
 
-def main(args, stat_file_name="debug/stat.csv", plot_file_subfix='one'):
+def print_trade_details(start_date, end_date, df_baseline, fund_dict, broker):
+    df_baseline = df_baseline[(df_baseline.index > start_date) & (df_baseline.index < end_date)]
+
+    df_stat = DataFrame()
+    # 如果是多只基金一起投资，挨个统计他们各自的情况
+    for code, df_fund in fund_dict.items():
+        df_fund = df_fund[(df_fund.index > start_date) & (df_fund.index < end_date)]
+        df_portfolio = df_portfolio[(df_portfolio.index > start_date) & (df_portfolio.index < end_date)]
+        if len(broker.df_trade_history) == 0:
+            logger.warning("基金[%s]未发生任何一笔交易", df_fund.iloc[0].code)
+            continue
+        # 统计这只基金的收益情况
+        stat = calculate_metrics(df_portfolio, df_baseline, df_fund, broker, args.amount, start_date, end_date)
+        df_stat = df_stat.append(stat, ignore_index=True)
+
+    # 打印交易记录
+    logger.info("交易记录：")
+    print(tabulate(broker.df_trade_history, headers='keys', tablefmt='psql'))
+
+    # 打印期末持仓情况
+    logger.info("期末持仓：")
+    df = DataFrame([p.to_dict() for code, p in broker.positions.items()])
+    print(tabulate(df, headers='keys', tablefmt='psql'))
+
+    # 把统计结果df_stat写入到csv文件
+    logger.info("交易统计：")
+    with pd.option_context('display.max_rows', 100, 'display.max_columns', 100):
+        # df = df_stat[["基金代码","投资起始","投资结束","期初资金","期末现金","期末持仓","期末总值","组合收益率","组合年化","本金投入","本金投入","资金利用率","基准收益","基金收益","买次","卖次","持仓","成本","现价"]]
+        df = df_stat[["基金代码", "投资起始", "投资结束", "期初资金", "期末现金", "期末持仓", "期末总值", "组合收益",
+                      "组合年化", "资金利用率", "基准收益", "基金收益", "买次", "卖次"]]
+        print(tabulate(df, headers='keys', tablefmt='psql'))
+    df_stat.to_csv(stat_file_name)
+
+    return df_stat
+
+
+def main(args):
     df_baseline = load_index(index_code=args.baseline)
 
     # 加载基金数据，标准化列名，close是为了和标准的指数的close看齐
@@ -83,48 +121,14 @@ def main(args, stat_file_name="debug/stat.csv", plot_file_subfix='one'):
     df_portfolio.set_index('date', inplace=True)
 
     # 统一过滤一下时间区间,
-    # 回测之后再过滤，会担心把start_date之前的也回测了，
-    # 为何开始用全部数据，是因为要算移动平均，需要之前的历史数据
-    # 而最后要显示和统计的时候，就需要只保留你关心的期间了
-
     start_date = str2date(args.start_date)
     end_date = str2date(args.end_date)
 
-    df_baseline = df_baseline[(df_baseline.index > start_date) & (df_baseline.index < end_date)]
-
-    df_stat = DataFrame()
-    # 如果是多只基金一起投资，挨个统计他们各自的情况
-    for code, df_fund in fund_dict.items():
-        df_fund = df_fund[(df_fund.index > start_date) & (df_fund.index < end_date)]
-        df_portfolio = df_portfolio[(df_portfolio.index > start_date) & (df_portfolio.index < end_date)]
-        if len(broker.df_trade_history)==0:
-            logger.warning("基金[%s]未发生任何一笔交易", df_fund.iloc[0].code)
-            continue
-        # 统计这只基金的收益情况
-        stat = calculate_metrics(df_portfolio, df_baseline, df_fund, broker, args.amount, start_date, end_date)
-        df_stat = df_stat.append(stat, ignore_index=True)
-
-    # 打印交易记录
-    logger.info("交易记录：")
-    print(tabulate(broker.df_trade_history, headers='keys', tablefmt='psql'))
-
-    # 打印期末持仓情况
-    logger.info("期末持仓：")
-    df = DataFrame([p.to_dict() for code, p in broker.positions.items()])
-    print(tabulate(df, headers='keys', tablefmt='psql'))
-
-    # 把统计结果df_stat写入到csv文件
-    if len(df_stat)>0:
-        logger.info("交易统计：")
-        with pd.option_context('display.max_rows', 100, 'display.max_columns', 100):
-            # df = df_stat[["基金代码","投资起始","投资结束","期初资金","期末现金","期末持仓","期末总值","组合收益率","组合年化","本金投入","本金投入","资金利用率","基准收益","基金收益","买次","卖次","持仓","成本","现价"]]
-            df = df_stat[["基金代码", "投资起始", "投资结束", "期初资金", "期末现金", "期末持仓", "期末总值", "组合收益",
-                          "组合年化", "资金利用率", "基准收益", "基金收益", "买次", "卖次"]]
-            print(tabulate(df, headers='keys', tablefmt='psql'))
-        df_stat.to_csv(stat_file_name)
+    # 打印交易统计和细节
+    df_stat = print_trade_details(start_date, end_date, df_baseline, fund_dict, broker)
 
     # 每只基金都给他单独画一个收益图
-    plot(start_date, end_date, broker, df_baseline, df_portfolio, fund_dict, plot_file_subfix, df_stat)
+    plot(start_date, end_date, broker, df_baseline, df_portfolio, fund_dict, df_stat)
 
     return df_stat
 

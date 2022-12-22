@@ -83,8 +83,9 @@ def plot(start_date, end_date, broker, df_baseline, df_portfolio, fund_dict, plo
         df_fund = df_fund[(df_fund.index > start_date) & (df_fund.index < end_date)]
         df_portfolio = df_portfolio[(df_portfolio.index > start_date) & (df_portfolio.index < end_date)]
 
-        if broker.positions.get(df_fund.iloc[0].code, None) is None:
+        if len(broker.df_trade_history)==0:
             logger.warning("基金[%s]未发生任何一笔交易", df_fund.iloc[0].code)
+            continue
 
         df_buy_trades = broker.df_trade_history[
             (broker.df_trade_history.code == code) & (broker.df_trade_history.action == 'buy')]
@@ -93,7 +94,6 @@ def plot(start_date, end_date, broker, df_baseline, df_portfolio, fund_dict, plo
         df_fund_market = broker.fund_market_dict[code]
 
         # 画一直基金的信息
-        print(row, col, pos)
         plot_fund(fig, row, col, pos, df_fund, df_fund_market, df_buy_trades, df_sell_trades)
 
     # 保存图片
