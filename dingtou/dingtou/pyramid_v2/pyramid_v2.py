@@ -114,13 +114,14 @@ def main(args, stat_file_name="debug/stat.csv", plot_file_subfix='one'):
     print(tabulate(df, headers='keys', tablefmt='psql'))
 
     # 把统计结果df_stat写入到csv文件
-    logger.info("交易统计：")
-    with pd.option_context('display.max_rows', 100, 'display.max_columns', 100):
-        # df = df_stat[["基金代码","投资起始","投资结束","期初资金","期末现金","期末持仓","期末总值","组合收益率","组合年化","本金投入","本金投入","资金利用率","基准收益","基金收益","买次","卖次","持仓","成本","现价"]]
-        df = df_stat[["基金代码", "投资起始", "投资结束", "期初资金", "期末现金", "期末持仓", "期末总值", "组合收益",
-                      "组合年化", "资金利用率", "基准收益", "基金收益", "买次", "卖次"]]
-        print(tabulate(df, headers='keys', tablefmt='psql'))
-    df_stat.to_csv(stat_file_name)
+    if len(df_stat)>0:
+        logger.info("交易统计：")
+        with pd.option_context('display.max_rows', 100, 'display.max_columns', 100):
+            # df = df_stat[["基金代码","投资起始","投资结束","期初资金","期末现金","期末持仓","期末总值","组合收益率","组合年化","本金投入","本金投入","资金利用率","基准收益","基金收益","买次","卖次","持仓","成本","现价"]]
+            df = df_stat[["基金代码", "投资起始", "投资结束", "期初资金", "期末现金", "期末持仓", "期末总值", "组合收益",
+                          "组合年化", "资金利用率", "基准收益", "基金收益", "买次", "卖次"]]
+            print(tabulate(df, headers='keys', tablefmt='psql'))
+        df_stat.to_csv(stat_file_name)
 
     # 每只基金都给他单独画一个收益图
     plot(start_date, end_date, broker, df_baseline, df_portfolio, fund_dict, plot_file_subfix, df_stat)
