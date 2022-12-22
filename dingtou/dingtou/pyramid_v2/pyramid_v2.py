@@ -73,8 +73,9 @@ def print_trade_details(start_date, end_date, amount, df_baseline, fund_dict, df
         for k, v in stat.items():
             logger.info("{:>20s} : {}".format(k, v))
         logger.info("=" * 80)
-
         df_stat = df_stat.append(stat, ignore_index=True)
+
+    if len(df_stat) == 0: return df_stat
 
     # 打印交易记录
     logger.info("交易记录：")
@@ -89,8 +90,8 @@ def print_trade_details(start_date, end_date, amount, df_baseline, fund_dict, df
     logger.info("交易统计：")
     with pd.option_context('display.max_rows', 100, 'display.max_columns', 100):
         # df = df_stat[["基金代码","投资起始","投资结束","期初资金","期末现金","期末持仓","期末总值","组合收益率","组合年化","本金投入","本金投入","资金利用率","基准收益","基金收益","买次","卖次","持仓","成本","现价"]]
-        df = df_stat[["基金代码", "投资起始", "投资结束", "期初资金", "期末现金", "期末持仓", "期末总值", "组合收益",
-                      "组合年化", "资金利用率", "基准收益", "基金收益", "买次", "卖次"]]
+        # df = df_stat[["基金代码", "投资起始", "投资结束", "期初资金", "期末现金", "期末持仓", "期末总值", "组合收益",
+        #               "组合年化", "资金利用率", "基准收益", "基金收益", "买次", "卖次"]]
         print(tabulate(df, headers='keys', tablefmt='psql'))
     df_stat.to_csv(stat_file_name)
 
