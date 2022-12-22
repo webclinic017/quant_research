@@ -3,6 +3,7 @@ import logging
 import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
 
+from pandas.plotting import table
 logger = logging.getLogger(__name__)
 
 
@@ -25,13 +26,13 @@ def plot(start_date, end_date, broker, df_baseline, df_portfolio, fund_dict, plo
     col = 1
     pos = 1
 
-    from pandas.plotting import table
-    ax_table = fig.add_subplot(row, col, pos)
-    fig.patch.set_visible(False)
-    ax_table.axis('off')
-    ax_table.axis('tight')
-    table(ax_table, df_stat, loc='center')
-    pos += 1
+    if len(df_stat)>0:
+        ax_table = fig.add_subplot(row, col, pos)
+        fig.patch.set_visible(False)
+        ax_table.axis('off')
+        ax_table.axis('tight')
+        table(ax_table, df_stat, loc='center')
+        pos += 1
 
     ################ 画第一张图 ################
     # 设置基准X轴
