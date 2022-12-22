@@ -44,11 +44,15 @@ class PyramidV2Strategy(Strategy):
 
     """
 
-    def __init__(self, broker, policy, grid_height, overlap_grid_num, ma_days, end_date):
+    def __init__(self, broker,
+                 policy, grid_height,
+                 quantile_positive,
+                 quantile_negative,
+                 ma_days, end_date):
         super().__init__(broker, None)
-        # self.grid_height = 0.008 # 千分之8的格子高度，是王纯迅在视频里透露的：https://www.bilibili.com/video/BV1d5411P7Lt
         self.grid_height = grid_height  # 上涨时候网格高度，百分比，如0.008
-        self.overlap_grid_num = overlap_grid_num  # 对敲重叠区域格子数，比如 5 个
+        self.quantile_positive = quantile_positive
+        self.quantile_negative = quantile_negative
         self.policy = policy
         self.last_grid_position_dict = {}
         self.positive_threshold_dict = {}
@@ -88,11 +92,11 @@ class PyramidV2Strategy(Strategy):
             df_daily_fund['diff_percent_close2ma'] = (df_daily_fund.close - df_daily_fund.ma) / df_daily_fund.ma
             # 超过MA的30%的分位数
             positive_threshold = df_daily_fund[
-                df_daily_fund.diff_percent_close2ma > 0].diff_percent_close2ma.quantile(0.8)
+                df_daily_fund.diff_percent_close2ma > 0].diff_percent_close2ma.quantile(self.quantile_positive)
             self.positive_threshold_dict[code] = 1 + positive_threshold // self.grid_height
             # 低于MA的30%的分位数
             negative_threshold = df_daily_fund[
-                df_daily_fund.diff_percent_close2ma < 0].diff_percent_close2ma.quantile(0.4)
+                df_daily_fund.diff_percent_close2ma < 0].diff_percent_close2ma.quantile(1-self.quantile_negative)
             self.negative_threshold_dict[code] = negative_threshold // self.grid_height
 
         for fund_code in funds_dict.keys():
@@ -131,7 +135,6 @@ class PyramidV2Strategy(Strategy):
         # 如果在均线下方，且，比上次的还低1~N个格子，那么就买入
         if current_grid_position < 0 and \
                 current_grid_position < last_grid_position and \
-                current_grid_position < -self.overlap_grid_num and \
                 current_grid_position < self.negative_threshold_dict[s_daily_fund.code]:
             # 根据偏离均线幅度，决定购买的份数
             positions = self.policy.calculate(current_grid_position, 'buy')
@@ -147,7 +150,7 @@ class PyramidV2Strategy(Strategy):
                              self.last_grid_position_dict[s_daily_fund.code] * 100,
                              positions)
                 logger.debug("current_grid_position > self.negative_threshold: %d > %d",
-                             current_grid_position , self.negative_threshold_dict[s_daily_fund.code])
+                             current_grid_position, self.negative_threshold_dict[s_daily_fund.code])
                 self.last_grid_position_dict[s_daily_fund.code] = current_grid_position
                 self.buy_ok += 1
             else:
@@ -157,7 +160,6 @@ class PyramidV2Strategy(Strategy):
         # 暂时不对敲了，只在高位区卖出，TODO
         # # 如果在均线下方，且，比上次的还高1~N个格子，且，在对敲(overlap)区，那么就卖出对应的份数
         # if 0 > current_grid_position > last_grid_position and \
-        #         abs(current_grid_position) < self.overlap_grid_num:
         #     positions = self.policy.calculate(current_grid_position, 'sell')
         #     if self.broker.sell(s_daily_fund.code, target_date, position=positions):
         #         logger.debug(">>[%s]%s均线下方%.1f%%/第%d格,高于上次(第%d格),对敲卖出%.1f份  (对敲) 基===>钱",
@@ -179,7 +181,6 @@ class PyramidV2Strategy(Strategy):
         # 在均线之上，且，超过之前的高度(diff>0)，且，至少超过1个网格(grid_num>=1)，就卖
         if current_grid_position > last_grid_position and \
                 current_grid_position > 0 and \
-                current_grid_position > self.overlap_grid_num and \
                 current_grid_position > self.positive_threshold_dict[s_daily_fund.code]:
             positions = self.policy.calculate(current_grid_position, 'sell')
             # 扣除手续费后，下取整算购买份数
@@ -192,7 +193,7 @@ class PyramidV2Strategy(Strategy):
                              self.last_grid_position_dict[s_daily_fund.code] * 100,
                              positions)
                 logger.debug("current_grid_position > self.positive_threshold: %d > %d",
-                             current_grid_position , self.positive_threshold_dict[s_daily_fund.code])
+                             current_grid_position, self.positive_threshold_dict[s_daily_fund.code])
                 self.last_grid_position_dict[s_daily_fund.code] = current_grid_position
                 self.sell_ok += 1
             else:

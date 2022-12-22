@@ -307,7 +307,7 @@ class Broker:
             return False
 
         if position and position > self.positions[code].position:
-            logger.warning("[%s]卖出[%s]的仓位[%d]>持仓[%d]",
+            logger.warning("[%s]卖出[%s]的仓位[%d]>持仓[%d]，清仓卖出",
                            date2str(date),
                            code,
                            position,
@@ -316,7 +316,10 @@ class Broker:
             position = self.positions[code].position
 
         self.trades.append(Trade(code, date, amount, position, 'sell'))
-        logger.debug("创建下个交易日[%s]卖单，卖出持仓基金 [%s] %r元/%r份", date2str(date), code, amount,
+        logger.debug("创建下个交易日[%s]卖单，卖出持仓基金 [%s] %r元/%r份",
+                     date2str(date),
+                     code,
+                     amount,
                      position)
         return True
 

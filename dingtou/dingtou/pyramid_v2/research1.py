@@ -23,12 +23,12 @@ def backtest(period, code):
     args.end_date = end_date
     args.amount = 200000  # 20万
     args.baseline = 'sh000001'
-    args.grid_height = 0.01  # 格子高度1%
     args.ma = -480  # 使用回看2年的均线=(最高+最低)/2
     args.code = code
+    args.grid_height = 0.01  # 格子高度1%
     args.grid_share = 1000  # 基准是1000份
-    args.overlap = 0  # 没有对敲区
-
+    args.quantile_positive = 0.5
+    args.quantile_negative = 0.5
     df = main(args, plot_file_subfix=f'{code}_{start_date}_{end_date}')
     return df
 
