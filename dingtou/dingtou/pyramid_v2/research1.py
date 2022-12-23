@@ -1,11 +1,12 @@
 import argparse
 import datetime
+import math
 import time
 import logging
 import pandas as pd
 
 from dingtou.pyramid_v2.pyramid_v2 import main
-from dingtou.utils import utils
+from dingtou.utils import utils, multi_processor
 from dingtou.utils.utils import parallel_run, split_periods, AttributeDict, str2date
 
 logger = logging.getLogger(__name__)
@@ -47,19 +48,21 @@ def run(code, start_date, end_date, years, roll_months,cores):
                                 window_years=year,
                                 roll_stride_months=roll_months)
 
-    # 并行跑
+    # 并行跑,分成10个10个并行跑，主要是老内存溢出
     # debug
-    dfs = parallel_run(core_num=cores,
-                       iterable=ranges,
+    dfs = []
+    for i in range(math.ceil(len(ranges)/10)):
+        r = ranges[i*10:(i+1)*10]
+        dfs = parallel_run(core_num=cores,
+                       iterable=r,
                        func=backtest,
                        code=code)
-
     df = pd.concat(dfs)
 
     df.to_csv(f"debug/{code}_{start_date}_{end_date}_{years}_{roll_months}.csv")
 
 
-# python -m dingtou.pyramid_v2.research1 -c 510310,510500,159915,588090 -s 20130101 -e 20230101
+# python -m dingtou.pyramid_v2.research1 -c 510310,510500,159915,588090 -s 20130101 -e 20230101 -cs 5
 # python -m dingtou.pyramid_v2.research1 -c 510500 -s 20180101 -e 20200101 -y 2 -r 12
 if __name__ == '__main__':
     utils.init_logger()
