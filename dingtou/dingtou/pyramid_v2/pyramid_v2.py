@@ -9,7 +9,7 @@ from dingtou.backtest.banker import Banker
 from dingtou.utils import utils
 from dingtou.backtest.backtester import BackTester
 from dingtou.backtest.broker import Broker
-from dingtou.backtest.data_loader import load_fund, load_index, load_funds
+from dingtou.backtest.data_loader import load_index, load_funds
 from dingtou.backtest.stat import calculate_metrics
 from dingtou.utils.utils import str2date
 from dingtou.pyramid_v2.plot import plot
@@ -142,9 +142,9 @@ def main(args):
 """
 # 手工测试目前最优 ,512000,512560
 python -m dingtou.pyramid_v2.pyramid_v2 \
--c 510310,510500,159915 \
--s 20180103 \
--e 20221231 \
+-c 510310,510500,159915,588090 \
+-s 20130101 \
+-e 20230101 \
 -b sh000001 \
 -a 0 \
 -m -480 \

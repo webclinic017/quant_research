@@ -27,8 +27,8 @@ def backtest(period, code):
     args.code = code
     args.grid_height = 0.01  # 格子高度1%
     args.grid_share = 1000  # 基准是1000份
-    args.quantile_positive = 0.3
-    args.quantile_negative = 0.3
+    args.quantile_positive = 0.8
+    args.quantile_negative = 0.2
     args.bank = True
     df = main(args)
     return df
@@ -63,13 +63,13 @@ def run(code, start_date, end_date, years, roll_months):
     df.to_csv(f"debug/{code}_{start_date}_{end_date}_{years}_{roll_months}.csv")
 
 
-# python -m dingtou.pyramid_v2.research1 -c 510500
+# python -m dingtou.pyramid_v2.research1 -c 510310,510500,159915,588090 -s 20130101 -e 20230101
 # python -m dingtou.pyramid_v2.research1 -c 510500 -s 20180101 -e 20200101 -y 2 -r 12
 if __name__ == '__main__':
     utils.init_logger()
     parser = argparse.ArgumentParser()
-    parser.add_argument('-s', '--start_date', type=str, default="20150101", help="开始日期")
-    parser.add_argument('-e', '--end_date', type=str, default="20221201", help="结束日期")
+    parser.add_argument('-s', '--start_date', type=str, default="20130101", help="开始日期")
+    parser.add_argument('-e', '--end_date', type=str, default="20230101", help="结束日期")
     parser.add_argument('-c', '--code', type=str, help="股票代码")
     parser.add_argument('-y', '--years', type=str, default='2,3,5', help="测试年份")
     parser.add_argument('-r', '--roll', type=int, default=3, help="滚动月份")

@@ -94,45 +94,14 @@ xn---->yn
 """
 
 
-def calculate(df_trade, broker, code=None):
-    """
-    用于计算
-    :param df_trades:
-    :return:
-    """
-    # 先按照时间排序
-    df = df_trade.sort_values(by='actual_date')
+def calculate(df_trade):
+    df_buy = df_trade[df_trade.action == 'buy']
+    df_sell = df_trade[df_trade.action == 'sell']
 
-    # 如果提供了基金代码，就是来考察这只基金的投入资金情况，否则，是整体投资的情况
-    if code: df = df[df_trade.code == code]
+    if len(df_buy) == 0: return 0, None, None
+    buy_sum = df_buy.amount.sum()
 
-    df_buy = df[df.action == 'buy']
-    df_sell = df[df.action == 'sell']
+    if len(df_sell) == 0: return buy_sum, None, None
+    sell_sum = df_sell.amount.sum()
 
-    if len(df_buy)==0: return 0,None,None
-    buy_0 = df_buy.iloc[0].amount
-    buy_sum_1_n = df_buy.iloc[1:].amount.sum()
-
-    if len(df_sell)==0: return buy_0+buy_sum_1_n,None,None
-    sell_n = df_sell.iloc[-1].amount
-    sell_sum_0_n_1 = df_sell.iloc[:-1].amount.sum()
-
-    # - 投入的资金是：x0 + sum(x1~xn) - sum(y0~y_n-1)
-    invest = buy_0 + buy_sum_1_n - sell_sum_0_n_1
-
-    # 持仓市值
-    position_value = broker.get_total_position_value()
-    if code: position_value = broker.get_position_value(code)
-
-    # - 获得产出是（不是收益）：sum(y0~y_n-1) - sum(x1~xn) + yn + stock
-    _yield = sell_sum_0_n_1 - buy_sum_1_n + sell_n + position_value
-
-
-    # 收益为
-    if invest > 0:
-        _return = (_yield - invest) / invest
-    else:
-        _return = (_yield - invest) / invest
-
-    return invest, _yield, _return # 目前只有invest在用
-
+    return buy_sum - sell_sum

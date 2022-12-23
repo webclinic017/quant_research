@@ -3,12 +3,12 @@ import logging
 from dateutil.relativedelta import relativedelta
 
 from dingtou.backtest import metrics
-from dingtou.pyramid import roe
 from dingtou.utils.utils import date2str
 
 logger = logging.getLogger(__name__)
 
-def calculate_metrics(df_portfolio, df_baseline, df_fund, broker,initial_amount, start_date,end_date):
+
+def calculate_metrics(df_portfolio, df_baseline, df_fund, broker, initial_amount, start_date, end_date):
     def annually_profit(start_value, end_value, start_date, end_date):
         """
         细节：earn是一个百分比，不是收益/投入，而是终值/投入，这个是年化公式要求的，
@@ -59,17 +59,6 @@ def calculate_metrics(df_portfolio, df_baseline, df_fund, broker,initial_amount,
 
     # 盈利 = 总卖出现金 + 持有市值 - 总投入现金 - 佣金
 
-    # 此基金本金投入
-    invest, _, _ = roe.calculate(broker.df_trade_history, broker, df_fund.iloc[0].code)
-    start_date = broker.df_trade_history.iloc[0].target_date
-    end_date = broker.df_trade_history.iloc[-1].target_date
-    stat["本金投入"] = invest
-
-    # 总本金投入
-    invest, _, _ = roe.calculate(broker.df_trade_history, broker)
-    stat["总本金"] = invest
-    stat["资金利用率"] = invest / initial_amount
-
     stat["夏普比率"] = metrics.sharp_ratio(df_portfolio.total_value.pct_change())
     stat["索提诺比率"] = metrics.sortino_ratio(df_portfolio.total_value.pct_change())
     stat["卡玛比率"] = metrics.calmar_ratio(df_portfolio.total_value.pct_change())
@@ -78,11 +67,11 @@ def calculate_metrics(df_portfolio, df_baseline, df_fund, broker,initial_amount,
     code = df_fund.iloc[0].code
 
     stat["买次"] = len(broker.df_trade_history[
-                               (broker.df_trade_history.code == code) &
-                               (broker.df_trade_history.action == 'buy')])
+                           (broker.df_trade_history.code == code) &
+                           (broker.df_trade_history.action == 'buy')])
     stat["卖次"] = len(broker.df_trade_history[
-                               (broker.df_trade_history.code == code) &
-                               (broker.df_trade_history.action == 'sell')])
+                           (broker.df_trade_history.code == code) &
+                           (broker.df_trade_history.action == 'sell')])
 
     stat["成本"] = -1 if broker.positions.get(code, None) is None else broker.positions[code].cost
     stat["持仓"] = -1 if broker.positions.get(code, None) is None else broker.positions[code].position
