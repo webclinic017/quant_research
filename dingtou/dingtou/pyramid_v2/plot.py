@@ -29,7 +29,7 @@ def plot(start_date, end_date, broker, df_baseline, df_portfolio, fund_dict, df_
     col = 1
     pos = 1
 
-    if len(df_stat)>0:
+    if len(df_stat) > 0:
         ax_table = fig.add_subplot(row, col, pos)
         fig.patch.set_visible(False)
         ax_table.axis('off')
@@ -86,7 +86,11 @@ def plot(start_date, end_date, broker, df_baseline, df_portfolio, fund_dict, df_
         df_fund = df_fund[(df_fund.index > start_date) & (df_fund.index < end_date)]
         df_portfolio = df_portfolio[(df_portfolio.index > start_date) & (df_portfolio.index < end_date)]
 
-        if len(broker.df_trade_history)==0:
+        if len(df_fund) == 0:
+            logger.warning("基金[%s] 在%s~%s没有数据", code, date2str(start_date), date2str(end_date))
+            continue
+
+        if len(broker.df_trade_history) == 0:
             logger.warning("基金[%s] 在%s~%s未发生任何一笔交易", code, date2str(start_date), date2str(end_date))
             continue
 
@@ -168,7 +172,7 @@ def plot_fund(fig, row, col, pos, df_fund, df_fund_market_value, df_buy_trades, 
     ax_position = ax.twinx()  # 返回共享x轴的第二个轴
     ax_position.spines['right'].set_position(('outward', 120))  # right, left, top, bottom
     ax_position.set_ylabel('持仓数量变化', color='g')  # 设置Y轴标题
-    h_position, = ax_position.plot(df_fund_market_value.date, df_fund_market_value.position, 'g',linewidth=0.5)
+    h_position, = ax_position.plot(df_fund_market_value.date, df_fund_market_value.position, 'g', linewidth=0.5)
 
     # 画仓位价值变化
     ax_position_value = ax.twinx()  # 返回共享x轴的第二个轴
