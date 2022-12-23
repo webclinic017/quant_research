@@ -11,7 +11,7 @@ from dingtou.backtest.backtester import BackTester
 from dingtou.backtest.broker import Broker
 from dingtou.backtest.data_loader import load_index, load_funds
 from dingtou.backtest.stat import calculate_metrics
-from dingtou.utils.utils import str2date
+from dingtou.utils.utils import str2date, date2str
 from dingtou.pyramid_v2.plot import plot
 from dingtou.pyramid_v2.position_calculator import PositionCalculator
 from dingtou.pyramid_v2.pyramid_v2_strategy import PyramidV2Strategy
@@ -62,7 +62,7 @@ def print_trade_details(start_date, end_date, amount, df_baseline, fund_dict, df
         df_fund = df_fund[(df_fund.index > start_date) & (df_fund.index < end_date)]
         df_portfolio = df_portfolio[(df_portfolio.index > start_date) & (df_portfolio.index < end_date)]
         if len(broker.df_trade_history) == 0:
-            logger.warning("基金[%s]未发生任何一笔交易", df_fund.iloc[0].code)
+            logger.warning("基金[%s] 在%s~%s未发生任何一笔交易", code,date2str(start_date),date2str(end_date))
             continue
         # 统计这只基金的收益情况
         stat = calculate_metrics(df_portfolio, df_baseline, df_fund, broker, amount, start_date, end_date)

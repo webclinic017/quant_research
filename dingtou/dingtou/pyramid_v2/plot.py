@@ -87,7 +87,7 @@ def plot(start_date, end_date, broker, df_baseline, df_portfolio, fund_dict, df_
         df_portfolio = df_portfolio[(df_portfolio.index > start_date) & (df_portfolio.index < end_date)]
 
         if len(broker.df_trade_history)==0:
-            logger.warning("基金[%s]未发生任何一笔交易", df_fund.iloc[0].code)
+            logger.warning("基金[%s] 在%s~%s未发生任何一笔交易", code, date2str(start_date), date2str(end_date))
             continue
 
         df_buy_trades = broker.df_trade_history[
