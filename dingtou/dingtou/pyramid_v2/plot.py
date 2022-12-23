@@ -98,7 +98,10 @@ def plot(start_date, end_date, broker, df_baseline, df_portfolio, fund_dict, df_
             (broker.df_trade_history.code == code) & (broker.df_trade_history.action == 'buy')]
         df_sell_trades = broker.df_trade_history[
             (broker.df_trade_history.code == code) & (broker.df_trade_history.action == 'sell')]
-        df_fund_market = broker.fund_market_dict[code]
+        df_fund_market = broker.fund_market_dict.get(code,None)
+        if df_fund_market is None:
+            logger.warning("基金[%s] 在%s~%s未发生交易市值变化", code, date2str(start_date), date2str(end_date))
+            continue
 
         # 画一直基金的信息
         plot_fund(fig, row, col, pos, df_fund, df_fund_market, df_buy_trades, df_sell_trades)
