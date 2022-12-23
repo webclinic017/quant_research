@@ -3,14 +3,10 @@ import datetime
 import time
 import logging
 import pandas as pd
-from pandas import DataFrame
-from tabulate import tabulate
 
 from dingtou.pyramid_v2.pyramid_v2 import main
 from dingtou.utils import utils
-from dingtou.utils.utils import parallel_run, split_periods, AttributeDict, date2str, str2date
-
-CORE_NUM = 16
+from dingtou.utils.utils import parallel_run, split_periods, AttributeDict, str2date
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +30,7 @@ def backtest(period, code):
     return df
 
 
-def run(code, start_date, end_date, years, roll_months):
+def run(code, start_date, end_date, years, roll_months,cores):
     """
     测试和优化方案：
     测试周期：  2013.1~2023.1（10年）
@@ -53,7 +49,7 @@ def run(code, start_date, end_date, years, roll_months):
 
     # 并行跑
     # debug
-    dfs = parallel_run(core_num=CORE_NUM,
+    dfs = parallel_run(core_num=cores,
                        iterable=ranges,
                        func=backtest,
                        code=code)
@@ -70,6 +66,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-s', '--start_date', type=str, default="20130101", help="开始日期")
     parser.add_argument('-e', '--end_date', type=str, default="20230101", help="结束日期")
+    parser.add_argument('-cs', '--cores', type=int, default=16)
     parser.add_argument('-c', '--code', type=str, help="股票代码")
     parser.add_argument('-y', '--years', type=str, default='2,3,5', help="测试年份")
     parser.add_argument('-r', '--roll', type=int, default=3, help="滚动月份")
@@ -80,6 +77,7 @@ if __name__ == '__main__':
         args.start_date,
         args.end_date,
         args.years,
-        args.roll)
+        args.roll,
+        args.cores)
 
     logger.debug("耗时: %s ", str(datetime.timedelta(seconds=time.time() - start_time)))
