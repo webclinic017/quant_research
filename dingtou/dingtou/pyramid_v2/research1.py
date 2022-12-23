@@ -51,8 +51,8 @@ def run(code, start_date, end_date, years, roll_months,cores):
     # 并行跑,分成10个10个并行跑，主要是老内存溢出
     # debug
     dfs = []
-    for i in range(math.ceil(len(ranges)/10)):
-        r = ranges[i*10:(i+1)*10]
+    for i in range(math.ceil(len(ranges)/(cores*3))):
+        r = ranges[i*(cores*3):(i+1)*(cores*3)]
         dfs = parallel_run(core_num=cores,
                        iterable=r,
                        func=backtest,
