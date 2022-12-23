@@ -64,6 +64,9 @@ def print_trade_details(start_date, end_date, amount, df_baseline, fund_dict, df
         if len(broker.df_trade_history) == 0:
             logger.warning("基金[%s] 在%s~%s未发生任何一笔交易", code,date2str(start_date),date2str(end_date))
             continue
+        if len(df_fund) == 0:
+            logger.warning("基金[%s] 在%s~%s的数据为空", code,date2str(start_date),date2str(end_date))
+            continue
         # 统计这只基金的收益情况
         stat = calculate_metrics(df_portfolio, df_baseline, df_fund, broker, amount, start_date, end_date)
         stat["借钱总额"] = banker.debt
