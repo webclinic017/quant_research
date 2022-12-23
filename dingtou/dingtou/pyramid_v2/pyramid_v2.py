@@ -117,6 +117,7 @@ def main(args):
     end_date = str2date(args.end_date)
 
     df_baseline = df_baseline[(df_baseline.index > start_date) & (df_baseline.index < end_date)]
+    df_portfolio = df_portfolio[(df_portfolio.index > start_date) & (df_portfolio.index < end_date)]
 
     # 打印交易统计和细节
     if banker:
@@ -141,18 +142,17 @@ def main(args):
 """
 # 手工测试目前最优 ,512000,512560
 python -m dingtou.pyramid_v2.pyramid_v2 \
--c 510500 \
--s 20150101 \
--e 20230101 \
+-c 510310,510500,159915 \
+-s 20180103 \
+-e 20221231 \
 -b sh000001 \
--a 200000 \
+-a 0 \
 -m -480 \
 -gs 1000 \
 -gh 0.01 \
--qp 0.5 \
--qn 0.5 \
+-qp 0.8 \
+-qn 0.2 \
 -bk
-
 # -m 480， -gs 1000， -a 50万，这几个组合是比较最优的了
 
 ["510050","510310","510500","512000","512560","512600"]
@@ -178,11 +178,11 @@ if __name__ == '__main__':
     parser.add_argument('-c', '--code', type=str, help="股票代码")
     parser.add_argument('-a', '--amount', type=int, default=200000, help="投资金额，默认50万")
     parser.add_argument('-bk', '--bank', action='store_true')
-    parser.add_argument('-m', '--ma', type=int, default=10, help=">0:间隔ma天的移动均线,<0:回看的最大最小值的均值")
-    parser.add_argument('-gh', '--grid_height', type=float, default=0.01, help="格子的高度，百分比，默认1%")
+    parser.add_argument('-m', '--ma', type=int, default=-480, help=">0:间隔ma天的移动均线,<0:回看的最大最小值的均值")
+    parser.add_argument('-gh', '--grid_height', type=float, default=0.02, help="格子的高度，百分比，默认1%")
     parser.add_argument('-gs', '--grid_share', type=int, default=100, help="每格子的基础份额")
-    parser.add_argument('-qn', '--quantile_negative', type=float, default=0.5, help="百分数区间")
-    parser.add_argument('-qp', '--quantile_positive', type=float, default=0.5, help="百分数区间")
+    parser.add_argument('-qn', '--quantile_negative', type=float, default=0.3, help="均线下百分数区间")
+    parser.add_argument('-qp', '--quantile_positive', type=float, default=0.3, help="均线上百分数区间")
 
     args = parser.parse_args()
     print(args)

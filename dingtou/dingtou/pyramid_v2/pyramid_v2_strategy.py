@@ -94,10 +94,15 @@ class PyramidV2Strategy(Strategy):
             positive_threshold = df_daily_fund[
                 df_daily_fund.diff_percent_close2ma > 0].diff_percent_close2ma.quantile(self.quantile_positive)
             self.positive_threshold_dict[code] = 1 + positive_threshold // self.grid_height
+
             # 低于MA的30%的分位数
             negative_threshold = df_daily_fund[
-                df_daily_fund.diff_percent_close2ma < 0].diff_percent_close2ma.quantile(1-self.quantile_negative)
+                df_daily_fund.diff_percent_close2ma < 0].diff_percent_close2ma.quantile(1 - self.quantile_negative)
             self.negative_threshold_dict[code] = negative_threshold // self.grid_height
+
+            # 这个是为了画图用，画出上下边界区域
+            df_daily_fund['ma_upper'] = df_daily_fund.ma * (1 + positive_threshold)
+            df_daily_fund['ma_lower'] = df_daily_fund.ma * (1 + negative_threshold)
 
         for fund_code in funds_dict.keys():
             self.last_grid_position_dict[fund_code] = 0

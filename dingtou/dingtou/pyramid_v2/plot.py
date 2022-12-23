@@ -23,7 +23,7 @@ def plot(start_date, end_date, broker, df_baseline, df_portfolio, fund_dict, df_
 
     plt.clf()
 
-    fig = plt.figure(figsize=(50, 20), dpi=(200))
+    fig = plt.figure(figsize=(50, 50), dpi=(200))
     # fig.set_figheight()
     row = 3 + len(fund_dict)
     col = 1
@@ -137,8 +137,12 @@ def plot_fund(fig, row, col, pos, df_fund, df_fund_market_value, df_buy_trades, 
     ax_fund_accumulate.set_ylabel('累计净值', color='g')  # 设置Y轴标题
     ax_fund_accumulate.spines['right'].set_position(('outward', 60))  # right, left, top, bottom
     h_fund_accumulate, = ax_fund_accumulate.plot(df_fund.index, df_fund.close, 'b', linewidth=2)
+
     # 画累计净值基金均线
     h_fund_sma, = ax_fund_accumulate.plot(df_fund.index, df_fund.ma, color='#6495ED', linestyle='--', linewidth=1)
+    # 画出上下规定的边界区域
+    ax_fund_accumulate.fill_between(df_fund.index, df_fund.ma_upper, df_fund.ma_lower, alpha=0.2)
+
     # 额外画一个年线，来参考用
     if 'ma242' in df_fund.columns:
         ax_fund_accumulate.plot(df_fund.index, df_fund.ma242, color='#7FFFAA', linestyle='--', linewidth=0.5)
