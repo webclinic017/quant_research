@@ -112,9 +112,17 @@ class PyramidV2Strategy(Strategy):
 
         # 遍历每一只基金，分别处理
         for fund_code, df_fund in self.funds_dict.items():
-            self.handle_one_fund(df_fund, today, trade_date)
+            diff2last = self.get_current_diff_percent(df_fund,today)
+            self.handle_one_fund(df_fund, today, diff2last)
 
-    def handle_one_fund(self, df_daily_fund, today, target_date):
+
+    def get_current_diff_percent(self,df_daily_fund,today):
+        s_daily_fund = get_value(df_daily_fund, today)
+        if s_daily_fund is None: return None
+        if pd.isna(s_daily_fund.diff_percent_close2ma): return None
+        return s_daily_fund.diff_percent_close2ma
+
+    def handle_one_fund(self, code, today, diff2last):
         """
         处理一只基金
         :param df_daily_fund:
@@ -122,16 +130,13 @@ class PyramidV2Strategy(Strategy):
         :param target_date:
         :return:
         """
-        s_daily_fund = get_value(df_daily_fund, today)
-        if s_daily_fund is None: return
-        if pd.isna(s_daily_fund.diff_percent_close2ma): return
+
 
         # 当前和上次位置的距离（单位是百分比）
-
         # 得到格子数，有可能是负数，。。。， -3，-2，-1，1，2，3，。。。，下面的if/else写法就是为了得到这个当前点位位于的格子编号
-        diff2last = s_daily_fund.diff_percent_close2ma
+
         current_grid_position = diff2last // self.grid_height if diff2last < 0 else 1 + diff2last // self.grid_height
-        last_grid_position = self.last_grid_position_dict[s_daily_fund.code]
+        last_grid_position = self.last_grid_position_dict[code]
 
         if current_grid_position == last_grid_position: return  # 在同一个格子，啥也不干
 
@@ -140,23 +145,23 @@ class PyramidV2Strategy(Strategy):
         # 如果在均线下方，且，比上次的还低1~N个格子，那么就买入
         if current_grid_position < 0 and \
                 current_grid_position < last_grid_position and \
-                current_grid_position < self.negative_threshold_dict[s_daily_fund.code]:
+                current_grid_position < self.negative_threshold_dict[code]:
             # 根据偏离均线幅度，决定购买的份数
             positions = self.policy.calculate(current_grid_position, 'buy')
             # 买入
-            if self.broker.buy(s_daily_fund.code,
-                               target_date,
+            if self.broker.buy(code,
+                               today,
                                position=positions):
                 logger.debug("[%s]%s距离均线%.1f%%/%d个格,低于上次历史%.1f%%,买入%.1f份  基<---钱",
                              date2str(today),
-                             s_daily_fund.code,
-                             s_daily_fund.diff_percent_close2ma * 100,
+                             code,
+                             diff2last * 100,
                              current_grid_position,
-                             self.last_grid_position_dict[s_daily_fund.code] * 100,
+                             self.last_grid_position_dict[code] * 100,
                              positions)
                 logger.debug("current_grid_position > self.negative_threshold: %d > %d",
-                             current_grid_position, self.negative_threshold_dict[s_daily_fund.code])
-                self.last_grid_position_dict[s_daily_fund.code] = current_grid_position
+                             current_grid_position, self.negative_threshold_dict[code])
+                self.last_grid_position_dict[code] = current_grid_position
                 self.buy_ok += 1
             else:
                 self.buy_fail += 1
@@ -186,21 +191,21 @@ class PyramidV2Strategy(Strategy):
         # 在均线之上，且，超过之前的高度(diff>0)，且，至少超过1个网格(grid_num>=1)，就卖
         if current_grid_position > last_grid_position and \
                 current_grid_position > 0 and \
-                current_grid_position > self.positive_threshold_dict[s_daily_fund.code]:
+                current_grid_position > self.positive_threshold_dict[code]:
             positions = self.policy.calculate(current_grid_position, 'sell')
             # 扣除手续费后，下取整算购买份数
-            if self.broker.sell(s_daily_fund.code, target_date, position=positions):
+            if self.broker.sell(code, today, position=positions):
                 logger.debug(">>[%s]%s距离均线%.1f%%/%d个格,高于上次(第%d格),卖出%.1f份  基===>钱",
                              date2str(today),
-                             s_daily_fund.code,
-                             s_daily_fund.diff_percent_close2ma * 100,
+                             code,
+                             diff2last * 100,
                              current_grid_position,
-                             self.last_grid_position_dict[s_daily_fund.code] * 100,
+                             self.last_grid_position_dict[code] * 100,
                              positions)
                 logger.debug("current_grid_position > self.positive_threshold: %d > %d",
-                             current_grid_position, self.positive_threshold_dict[s_daily_fund.code])
-                self.last_grid_position_dict[s_daily_fund.code] = current_grid_position
+                             current_grid_position, self.positive_threshold_dict[code])
+                self.last_grid_position_dict[code] = current_grid_position
                 self.sell_ok += 1
             else:
-                if self.broker.positions.get(s_daily_fund.code, None) is not None:
+                if self.broker.positions.get(code, None) is not None:
                     self.sell_fail += 1
