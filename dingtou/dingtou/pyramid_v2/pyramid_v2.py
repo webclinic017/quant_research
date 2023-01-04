@@ -47,11 +47,6 @@ def backtest(df_baseline: DataFrame, funds_data: dict, args):
     # 运行回测！！！
     backtester.run()
 
-    logger.info("buy ok：%d", strategy.buy_ok)
-    logger.info("buy fail：%d", strategy.buy_fail)
-    logger.info("sell ok：%d", strategy.sell_ok)
-    logger.info("sell fail：%d", strategy.sell_fail)
-
     return broker.df_total_market_value, broker, banker
 
 
@@ -157,6 +152,9 @@ python -m dingtou.pyramid_v2.pyramid_v2 \
 -qn 0.2 \
 -bk
 # -m 480， -gs 1000， -a 50万，这几个组合是比较最优的了
+
+# windows上，和iquant/qmt对比测试用，不支持换行 
+python -m dingtou.pyramid_v2.pyramid_v2 -c 510500 -s 20160101 -e 20200101 -b sh000001 -a 200000 -m -480 -gs 100 -gh 0.01 -qp 0.8 -qn 0.2
 
 
 python -m dingtou.pyramid_v2.pyramid_v2 -c 510310,510500,159915,588090 -s 20130101 -e 20230101 -b sh000001 

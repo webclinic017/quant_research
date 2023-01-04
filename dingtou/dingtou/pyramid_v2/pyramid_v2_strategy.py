@@ -140,7 +140,7 @@ class PyramidV2Strategy(Strategy):
 
         if current_grid_position == last_grid_position: return  # 在同一个格子，啥也不干
 
-        # import pdb;pdb.set_trace()
+        # logger.debug(f"current_grid_position:{current_grid_position},last_grid_position:{last_grid_position},negative_threshold:{self.negative_threshold_dict[code]}")
 
         # 如果在均线下方，且，比上次的还低1~N个格子，那么就买入
         if current_grid_position < 0 and \
@@ -159,13 +159,10 @@ class PyramidV2Strategy(Strategy):
                              current_grid_position,
                              self.last_grid_position_dict[code] * 100,
                              positions)
-                logger.debug("current_grid_position > self.negative_threshold: %d > %d",
-                             current_grid_position, self.negative_threshold_dict[code])
+                # logger.debug("current_grid_position > self.negative_threshold: %d > %d",
+                #              current_grid_position, self.negative_threshold_dict[code])
                 self.last_grid_position_dict[code] = current_grid_position
-                self.buy_ok += 1
-            else:
-                self.buy_fail += 1
-            return
+
 
         # 暂时不对敲了，只在高位区卖出，TODO
         # # 如果在均线下方，且，比上次的还高1~N个格子，且，在对敲(overlap)区，那么就卖出对应的份数
@@ -202,10 +199,6 @@ class PyramidV2Strategy(Strategy):
                              current_grid_position,
                              self.last_grid_position_dict[code] * 100,
                              positions)
-                logger.debug("current_grid_position > self.positive_threshold: %d > %d",
-                             current_grid_position, self.positive_threshold_dict[code])
+                # logger.debug("current_grid_position > self.positive_threshold: %d > %d",
+                #              current_grid_position, self.positive_threshold_dict[code])
                 self.last_grid_position_dict[code] = current_grid_position
-                self.sell_ok += 1
-            else:
-                if self.broker.positions.get(code, None) is not None:
-                    self.sell_fail += 1
