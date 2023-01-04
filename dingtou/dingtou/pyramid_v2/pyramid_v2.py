@@ -64,8 +64,8 @@ def print_trade_details(start_date, end_date, amount, df_baseline, fund_dict, df
             continue
         # 统计这只基金的收益情况
         stat = calculate_metrics(df_portfolio, df_baseline, df_fund, broker, amount, start_date, end_date)
-        stat["借钱总额"] = banker.debt
-        stat["借钱次数"] = banker.debt_num
+        stat["借钱总额"] = banker.debt if banker else 'N/A'
+        stat["借钱次数"] = banker.debt_num if banker else 'N/A'
 
         # 打印，暂时注释掉
         for k, v in stat.items():
