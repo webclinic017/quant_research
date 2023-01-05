@@ -6,7 +6,7 @@ import logging
 import pandas as pd
 
 from dingtou.pyramid_v2.pyramid_v2 import main
-from dingtou.utils import utils, multi_processor
+from dingtou.utils import utils
 from dingtou.utils.utils import parallel_run, split_periods, AttributeDict, str2date
 
 logger = logging.getLogger(__name__)
@@ -42,7 +42,7 @@ def run(code, start_date, end_date, ma, quantiles,years, roll_months,cores):
 
     # 从2013~2015年，每隔3个月，向后滚动2、3、5年的一个周期
     ranges = []
-    for year in [int(y) for y in args.years.split(",")]:
+    for year in [int(y) for y in years.split(",")]:
         ranges += split_periods(start_date=str2date(start_date),
                                 end_date=str2date(end_date),
                                 window_years=year,

@@ -34,8 +34,8 @@ def main(code, start_date, end_date, years, roll_months, cores):
     df.to_csv(f"debug/{code}_{start_date}_{end_date}_{years}_{roll_months}_ma.csv")
 
 
-# python -m dingtou.pyramid_v2.research2 -c 510310,510500,159915,588090 -s 20130101 -e 20230101 -cs 5
-# python -m dingtou.pyramid_v2.research1 -c 510500 -s 20180101 -e 20200101 -y 2 -r 12
+# python -m dingtou.pyramid_v2.research3 -c 510310,510500,159915,588090 -s 20130101 -e 20230101 -cs 5
+# python -m dingtou.pyramid_v2.research3 -c 510500 -s 20180101 -e 20200101 -y 2 -r 12
 if __name__ == '__main__':
     utils.init_logger()
     parser = argparse.ArgumentParser()
