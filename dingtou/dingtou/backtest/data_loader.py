@@ -56,7 +56,7 @@ def load_stock(code):
               func=ak.stock_zh_a_hist,
               symbol=code,
               period="daily",
-              adjust="hfq")
+              adjust="qfq")
     df['日期'] = pd.to_datetime(df['日期'], format='%Y-%m-%d')
     df.rename(columns={'日期': 'date',
                        '开盘': 'open',

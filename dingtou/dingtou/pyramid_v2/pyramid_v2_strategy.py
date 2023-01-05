@@ -115,6 +115,13 @@ class PyramidV2Strategy(Strategy):
 
 
     def get_current_diff_percent(self,df_daily_fund,today):
+        """
+        获得当前价格，距离均线的距离，
+        :param df_daily_fund:
+        :param today:
+        :return:
+        """
+
         s_daily_fund = get_value(df_daily_fund, today)
         if s_daily_fund is None: return None
         if pd.isna(s_daily_fund.diff_percent_close2ma): return None
@@ -128,11 +135,10 @@ class PyramidV2Strategy(Strategy):
         :param target_date:
         :return:
         """
-
+        if diff2last is None: return
 
         # 当前和上次位置的距离（单位是百分比）
         # 得到格子数，有可能是负数，。。。， -3，-2，-1，1，2，3，。。。，下面的if/else写法就是为了得到这个当前点位位于的格子编号
-
         current_grid_position = diff2last // self.grid_height if diff2last < 0 else 1 + diff2last // self.grid_height
         last_grid_position = 0 if self.last_grid_position_dict.get(code,None) is None else self.last_grid_position_dict[code]
 

@@ -12,7 +12,7 @@ from dingtou.utils.utils import parallel_run, split_periods, AttributeDict, str2
 logger = logging.getLogger(__name__)
 
 
-def backtest(period, code):
+def backtest(period, code, ma, quantiles):
     start_date = period[0]
     end_date = period[1]
     args = AttributeDict()
@@ -20,18 +20,18 @@ def backtest(period, code):
     args.end_date = end_date
     args.amount = 0  # 0万
     args.baseline = 'sh000001'
-    args.ma = -480  # 使用回看2年的均线=(最高+最低)/2
+    args.ma = ma
     args.code = code
     args.grid_height = 0.01  # 格子高度1%
     args.grid_share = 1000  # 基准是1000份
-    args.quantile_positive = 0.8
-    args.quantile_negative = 0.2
+    args.quantile_negative = quantiles[0]
+    args.quantile_positive = quantiles[1]
     args.bank = True
     df = main(args)
     return df
 
 
-def run(code, start_date, end_date, years, roll_months,cores):
+def run(code, start_date, end_date, ma, quantiles,years, roll_months,cores):
     """
     测试和优化方案：
     测试周期：  2013.1~2023.1（10年）
@@ -56,10 +56,13 @@ def run(code, start_date, end_date, years, roll_months,cores):
         dfs = parallel_run(core_num=cores,
                        iterable=r,
                        func=backtest,
-                       code=code)
+                       code=code,
+                       ma=ma,
+                       quantiles=quantiles)
     df = pd.concat(dfs)
 
     df.to_csv(f"debug/{code}_{start_date}_{end_date}_{years}_{roll_months}.csv")
+    return df
 
 
 # python -m dingtou.pyramid_v2.research1 -c 510310,510500,159915,588090 -s 20130101 -e 20230101 -cs 5
@@ -79,6 +82,8 @@ if __name__ == '__main__':
     run(args.code,
         args.start_date,
         args.end_date,
+        -480, # 默认的2年回看最大徐小均线
+        [0.2,0.8], # 默认的上下边界
         args.years,
         args.roll,
         args.cores)
