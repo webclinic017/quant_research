@@ -11,7 +11,7 @@ from dingtou.utils.utils import parallel_run, split_periods, AttributeDict, str2
 
 logger = logging.getLogger(__name__)
 
-TASKS_PER_CORE = 5 # 每个核跑5个，就退出
+TASKS_PER_CORE = 4 # 每个核跑4个，就退出
 
 def backtest(period, code, ma, quantiles):
     start_date = period[0]
@@ -52,10 +52,12 @@ def run(code, start_date, end_date, ma, quantiles,years, roll_months,cores):
     # 2013.1.1~2023.1.1, 2,3,5年，滚动3个月，合计83个组合
     logger.debug("从%s~%s,分别测试周期为%s的滚动%d个月的组合，合计%d个",start_date,end_date,years,roll_months,len(ranges))
 
+    """
+    需要权衡：总内存，1个进程的内存，10个进程，1次700M，3次2.1G，32G，12个CPU比较合适：12x2.1G=24G，在安全之内
     # 如果直接用dask跑，我一共有20个cpu，一起跑，就总会进程崩掉，观察是内存不断在增加导致的，
     # 平均一个python进程跑到5个左右就完蛋，所以控制每个core一口气跑5个组合，还是使用16个core，5个之后，就完事，省的这个进程爆掉，
     # 16个核心，每个核心5个（TASKS_PER_CORE），所以，就是一个批次跑80个
-    # debug
+    """
     dfs = []
     # ranges/cores*3, range=83, cores=5, 80/15 = 6
     dask_task_num = cores * TASKS_PER_CORE
@@ -77,7 +79,7 @@ def run(code, start_date, end_date, ma, quantiles,years, roll_months,cores):
     return df
 
 
-# python -m dingtou.pyramid_v2.research1 -c 510310,510500,159915,588090 -s 20130101 -e 20230101 -cs 5
+# python -m dingtou.pyramid_v2.research1 -c 510310,510500,159915,588090 -s 20130101 -e 20230101 -cs 16
 # python -m dingtou.pyramid_v2.research1 -c 510500 -s 20180101 -e 20200101 -y 2 -r 12
 if __name__ == '__main__':
     utils.init_logger()
