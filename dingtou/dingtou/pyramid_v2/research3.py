@@ -29,7 +29,12 @@ mas = [240, 480, 850, -240, -480]
 def main(code, start_date, end_date, years, roll_months, cores):
     dfs = []
     for ma in mas:
-        dfs.append(run(code, start_date, end_date, ma, quantiles, years, roll_months, cores))
+        df_result = run(code, start_date, end_date, ma, quantiles, years, roll_months, cores)
+        df_result['负收益分位数'] = quantiles[0]
+        df_result['正收益分位数'] = quantiles[1]
+        df_result['移动均值'] = ma
+        dfs.append(df_result)
+
     df = pd.concat(dfs)
     df.to_csv(f"debug/{code}_{start_date}_{end_date}_{years}_{roll_months}_ma.csv")
 
