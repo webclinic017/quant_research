@@ -23,7 +23,7 @@ quantiles = [
     [0.2, 0.5], [0.2, 0.6], [0.2, 0.8],
     [0.4, 0.5], [0.4, 0.6], [0.4, 0.8]
 ]
-MA = 480
+MA = 850
 
 
 def main(code, start_date, end_date, years, roll_months, cores):
