@@ -72,8 +72,9 @@ def run(code, start_date, end_date, ma, quantiles, years, roll_months, cores):
     df.to_csv(f"debug/{code}_{start_date}_{end_date}_{years}_{roll_months}.csv")
     return df
 
+# python -m dingtou.pyramid_v2.research1 -c 510500 -s 20130101 -e 20230101 -cs 16
 # python -m dingtou.pyramid_v2.research1 -c 510310,510500,159915,588090 -s 20130101 -e 20230101 -cs 16
-# python -m dingtou.pyramid_v2.research1 -c 510500 -s 20180101 -e 20210101 -y 2 -r 6 -cs 2
+# python -m dingtou.pyramid_v2.research1 -c 510500 -s 20180101 -e 20210101 -y 2 -r 6 -cs 2 -m 850 -q 0.2,0.8
 if __name__ == '__main__':
     utils.init_logger(file=True)
     parser = argparse.ArgumentParser()
@@ -83,14 +84,16 @@ if __name__ == '__main__':
     parser.add_argument('-c', '--code', type=str, help="股票代码")
     parser.add_argument('-y', '--years', type=str, default='2,3,5', help="测试年份")
     parser.add_argument('-r', '--roll', type=int, default=3, help="滚动月份")
+    parser.add_argument('-m', '--ma', type=int, default=850)
+    parser.add_argument('-q', '--quantile', type=str, default='0.2,0.8')
     args = parser.parse_args()
 
     start_time = time.time()
     run(args.code,
         args.start_date,
         args.end_date,
-        -480,  # 默认的2年回看最大徐小均线
-        [0.2, 0.8],  # 默认的上下边界
+        args.ma,  # 默认的2年回看最大徐小均线
+        [float(q) for q in args.quantile.split(",")],  # 默认的上下边界
         args.years,
         args.roll,
         args.cores)
