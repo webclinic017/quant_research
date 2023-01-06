@@ -63,7 +63,7 @@ def run(code, start_date, end_date, ma, quantiles,years, roll_months,cores):
     dask_task_num = cores * TASKS_PER_CORE
     counter = math.ceil(len(ranges) / dask_task_num)
     logger.debug("经过%d轮，每轮使用%d个核，每个核运行%d个任务，每轮合计%d个任务，一共%d个任务",
-                 counter,cores,dask_task_num,dask_task_num,len(ranges))
+                 counter,cores,TASKS_PER_CORE,dask_task_num,len(ranges))
     for i in range(counter):
         r = ranges[i*dask_task_num:(i+1)*dask_task_num]
         dfs = parallel_run(core_num=cores,

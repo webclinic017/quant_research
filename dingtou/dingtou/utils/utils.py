@@ -202,11 +202,19 @@ def parallel_run(core_num, iterable, func, *args, **kwargs):
     :param args:
     :param kwargs:
     :return:
-    """
 
+    dask文档：https://docs.dask.org/en/latest/scheduling.html
+    """
     with dask.config.set(scheduler='processes', num_workers=core_num):
+        """
+        functools.partial就是帮助我们创建一个偏函数的，不需要我们自己定义int2()，可以直接使用下面的代码创建一个新的函数int2：
+        >>> import functools
+        >>> int2 = functools.partial(int, base=2)
+        >>> int2('1000000')
+        64
         # 偏函数partial：https://www.liaoxuefeng.com/wiki/1016959663602400/1017454145929440
-        logger.debug("并行运行函数%s,参数：%r;%r",func.__name__,args,kwargs)
+        """
+        logger.debug("使用%d个并行，运行函数%s,参数：%r;%r",core_num,func.__name__,args,kwargs)
         func_partial = functools.partial(func, *args, **kwargs)
 
         # dask：https://juejin.cn/post/7083079485230153764
