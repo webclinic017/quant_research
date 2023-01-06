@@ -11,7 +11,7 @@ from dingtou.utils.utils import parallel_run, split_periods, AttributeDict, str2
 
 logger = logging.getLogger(__name__)
 
-TASKS_PER_CORE = 4 # 每个核跑4个，就退出
+TASKS_PER_CORE = 3 # 每个核跑4个，就退出
 
 def backtest(period, code, ma, quantiles):
     start_date = period[0]
@@ -79,14 +79,14 @@ def run(code, start_date, end_date, ma, quantiles,years, roll_months,cores):
     return df
 
 
-# python -m dingtou.pyramid_v2.research1 -c 510310,510500,159915,588090 -s 20130101 -e 20230101 -cs 16
+# python -m dingtou.pyramid_v2.research1 -c 510310,510500,159915,588090 -s 20130101 -e 20230101 -cs 10
 # python -m dingtou.pyramid_v2.research1 -c 510500 -s 20180101 -e 20200101 -y 2 -r 12
 if __name__ == '__main__':
-    utils.init_logger()
+    utils.init_logger(file=True)
     parser = argparse.ArgumentParser()
     parser.add_argument('-s', '--start_date', type=str, default="20130101", help="开始日期")
     parser.add_argument('-e', '--end_date', type=str, default="20230101", help="结束日期")
-    parser.add_argument('-cs', '--cores', type=int, default=16)
+    parser.add_argument('-cs', '--cores', type=int, default=10)
     parser.add_argument('-c', '--code', type=str, help="股票代码")
     parser.add_argument('-y', '--years', type=str, default='2,3,5', help="测试年份")
     parser.add_argument('-r', '--roll', type=int, default=3, help="滚动月份")
