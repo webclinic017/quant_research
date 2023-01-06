@@ -72,7 +72,7 @@ def run(code, start_date, end_date, ma, quantiles, years, roll_months, cores):
     df.to_csv(f"debug/{code}_{start_date}_{end_date}_{years}_{roll_months}.csv")
     return df
 
-# python -m dingtou.pyramid_v2.research1 -c 510500 -s 20130101 -e 20230101 -cs 16
+# python -m dingtou.pyramid_v2.research1 -c 510500 -s 20130101 -e 20230101 -cs 16  -m 850 -q 0.2,0.8
 # python -m dingtou.pyramid_v2.research1 -c 510310,510500,159915,588090 -s 20130101 -e 20230101 -cs 16
 # python -m dingtou.pyramid_v2.research1 -c 510500 -s 20180101 -e 20210101 -y 2 -r 6 -cs 2 -m 850 -q 0.2,0.8
 if __name__ == '__main__':

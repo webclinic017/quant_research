@@ -86,7 +86,9 @@ class PyramidV2Strategy(Strategy):
                 df_daily_fund['ma242'] = talib.SMA(df_daily_fund.close, timeperiod=242)
             else:
                 # 如果是self.ma_days是正值，用N天的均线
-                df_daily_fund['ma'] = talib.SMA(df_daily_fund.close, timeperiod=self.ma_days)
+                # df_daily_fund['ma'] = talib.SMA(df_daily_fund.close, timeperiod=self.ma_days)
+                # 不用talib的sma，是因为，ma_days取850的时候，会出现850个na，所以用pandas的rolling，使用min_periods避免nan
+                df_daily_fund['ma'] = df_daily_fund.close.rolling(window=self.ma_days,min_periods=1).mean()
 
             # 计算价格到均价的距离
             df_daily_fund['diff_percent_close2ma'] = (df_daily_fund.close - df_daily_fund.ma) / df_daily_fund.ma
@@ -121,7 +123,6 @@ class PyramidV2Strategy(Strategy):
         :param today:
         :return:
         """
-
         s_daily_fund = get_value(df_daily_fund, today)
         if s_daily_fund is None: return None
         if pd.isna(s_daily_fund.diff_percent_close2ma): return None
@@ -135,7 +136,8 @@ class PyramidV2Strategy(Strategy):
         :param target_date:
         :return:
         """
-        if diff2last is None: return
+        if diff2last is None:
+            return
 
         # 当前和上次位置的距离（单位是百分比）
         # 得到格子数，有可能是负数，。。。， -3，-2，-1，1，2，3，。。。，下面的if/else写法就是为了得到这个当前点位位于的格子编号
@@ -144,7 +146,6 @@ class PyramidV2Strategy(Strategy):
 
         if current_grid_position == last_grid_position: return  # 在同一个格子，啥也不干
 
-        # logger.debug(f"current_grid_position:{current_grid_position},last_grid_position:{last_grid_position},negative_threshold:{self.negative_threshold_dict[code]}")
 
         # 如果在均线下方，且，比上次的还低1~N个格子，那么就买入
         if current_grid_position < 0 and \
@@ -166,6 +167,7 @@ class PyramidV2Strategy(Strategy):
                 # logger.debug("current_grid_position > self.negative_threshold: %d > %d",
                 #              current_grid_position, self.negative_threshold_dict[code])
                 self.last_grid_position_dict[code] = current_grid_position
+            return
 
 
         # 暂时不对敲了，只在高位区卖出，TODO
@@ -206,3 +208,6 @@ class PyramidV2Strategy(Strategy):
                 # logger.debug("current_grid_position > self.positive_threshold: %d > %d",
                 #              current_grid_position, self.positive_threshold_dict[code])
                 self.last_grid_position_dict[code] = current_grid_position
+            return
+
+        # logger.debug(f"current_grid_position:{current_grid_position},last_grid_position:{last_grid_position},negative_threshold:{self.negative_threshold_dict[code]}")

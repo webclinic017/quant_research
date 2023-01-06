@@ -21,6 +21,6 @@ class PositionCalculator():
         """
 
         if buy_or_sell == 'buy':
-            return self.share_per_grid * abs(current_grid_position) * 2
+            return self.share_per_grid * abs(current_grid_position) 
         else:  # 'sell'
             return self.share_per_grid * current_grid_position
