@@ -221,4 +221,6 @@ def parallel_run(core_num, iterable, func, *args, **kwargs):
         # delayed是包装一下函数，compute是真正并行执行
         result = compute([delayed(func_partial)(i) for i in iterable])[0]
 
+        client = Client(asynchronous=True, n_workers=4, threads_per_worker=2)
+
         return result
