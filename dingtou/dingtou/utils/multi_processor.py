@@ -36,6 +36,7 @@ def execute(data, worker_num, function,**params):
 
     for id, worker_data_list in enumerate(split_data_list):
 
+        if len(worker_data_list)==0: continue
         # 加入2个参数，一个叫data，一个叫result，是要求函数"function"，必须具备的2个参数名字
         params['data'] = worker_data_list
         params['result'] = results

@@ -70,9 +70,10 @@ def run(code, start_date, end_date, ma, quantiles, years, roll_months, cores):
             quantiles=quantiles)
     df = pd.concat(results)
     df.to_csv(f"debug/{code}_{start_date}_{end_date}_{years}_{roll_months}.csv")
+    return df
 
 # python -m dingtou.pyramid_v2.research1 -c 510310,510500,159915,588090 -s 20130101 -e 20230101 -cs 16
-# python -m dingtou.pyramid_v2.research1 -c 510500 -s 20180101 -e 20220101 -y 2 -r 6 -cs 2
+# python -m dingtou.pyramid_v2.research1 -c 510500 -s 20180101 -e 20210101 -y 2 -r 6 -cs 2
 if __name__ == '__main__':
     utils.init_logger(file=True)
     parser = argparse.ArgumentParser()
