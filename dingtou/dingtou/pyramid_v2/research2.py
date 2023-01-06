@@ -41,7 +41,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-s', '--start_date', type=str, default="20130101", help="开始日期")
     parser.add_argument('-e', '--end_date', type=str, default="20230101", help="结束日期")
-    parser.add_argument('-cs', '--cores', type=int, default=16)
+    parser.add_argument('-cs', '--cores', type=int, default=5)
     parser.add_argument('-c', '--code', type=str, help="股票代码")
     parser.add_argument('-y', '--years', type=str, default='2,3,5', help="测试年份")
     parser.add_argument('-r', '--roll', type=int, default=3, help="滚动月份")

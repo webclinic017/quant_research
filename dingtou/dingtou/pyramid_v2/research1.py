@@ -11,6 +11,7 @@ from dingtou.utils.utils import parallel_run, split_periods, AttributeDict, str2
 
 logger = logging.getLogger(__name__)
 
+TASKS_PER_CORE = 5 # 每个核跑5个，就退出
 
 def backtest(period, code, ma, quantiles):
     start_date = period[0]
@@ -48,17 +49,28 @@ def run(code, start_date, end_date, ma, quantiles,years, roll_months,cores):
                                 window_years=year,
                                 roll_stride_months=roll_months)
 
-    # 并行跑,分成10个10个并行跑，主要是老内存溢出
+    # 2013.1.1~2023.1.1, 2,3,5年，滚动3个月，合计83个组合
+    logger.debug("从%s~%s,分别测试周期为%s的滚动%d个月的组合，合计%d个",start_date,end_date,years,roll_months,len(ranges))
+
+    # 如果直接用dask跑，我一共有20个cpu，一起跑，就总会进程崩掉，观察是内存不断在增加导致的，
+    # 平均一个python进程跑到5个左右就完蛋，所以控制每个core一口气跑5个组合，还是使用16个core，5个之后，就完事，省的这个进程爆掉，
+    # 16个核心，每个核心5个（TASKS_PER_CORE），所以，就是一个批次跑80个
     # debug
     dfs = []
-    for i in range(math.ceil(len(ranges)/(cores*3))):
-        r = ranges[i*(cores*3):(i+1)*(cores*3)]
+    # ranges/cores*3, range=83, cores=5, 80/15 = 6
+    dask_task_num = cores * TASKS_PER_CORE
+    counter = math.ceil(len(ranges) / dask_task_num)
+    logger.debug("经过%d轮，每轮使用%d个核，每个核运行%d个任务，每轮合计%d个任务，一共%d个任务",
+                 counter,cores,dask_task_num,dask_task_num,len(ranges))
+    for i in range(counter):
+        r = ranges[i*dask_task_num:(i+1)*dask_task_num]
         dfs = parallel_run(core_num=cores,
                        iterable=r,
                        func=backtest,
                        code=code,
                        ma=ma,
                        quantiles=quantiles)
+        logger.debug("完成第%d轮的任务",i+1)
     df = pd.concat(dfs)
 
     df.to_csv(f"debug/{code}_{start_date}_{end_date}_{years}_{roll_months}.csv")
