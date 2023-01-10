@@ -169,26 +169,6 @@ class PyramidV2Strategy(Strategy):
                 self.last_grid_position_dict[code] = current_grid_position
             return
 
-
-        # 暂时不对敲了，只在高位区卖出，TODO
-        # # 如果在均线下方，且，比上次的还高1~N个格子，且，在对敲(overlap)区，那么就卖出对应的份数
-        # if 0 > current_grid_position > last_grid_position and \
-        #     positions = self.policy.calculate(current_grid_position, 'sell')
-        #     if self.broker.sell(s_daily_fund.code, target_date, position=positions):
-        #         logger.debug(">>[%s]%s均线下方%.1f%%/第%d格,高于上次(第%d格),对敲卖出%.1f份  (对敲) 基===>钱",
-        #                      date2str(today),
-        #                      s_daily_fund.code,
-        #                      s_daily_fund.diff_percent_close2ma * 100,
-        #                      current_grid_position,
-        #                      self.last_grid_position_dict[s_daily_fund.code] * 100,
-        #                      positions)
-        #         self.last_grid_position_dict[s_daily_fund.code] = current_grid_position
-        #         self.sell_ok += 1
-        #     else:
-        #         if self.broker.positions.get(s_daily_fund.code, None) is not None:
-        #             self.sell_fail += 1
-        #     return
-
         # logger.debug("current:%d,last:%d,diff:%.2f%%",current_grid_position,last_grid_position,diff2last*100)
 
         # 在均线之上，且，超过之前的高度(diff>0)，且，至少超过1个网格(grid_num>=1)，就卖

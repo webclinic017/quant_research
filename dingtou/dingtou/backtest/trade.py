@@ -30,3 +30,9 @@ class Trade:
             'position': self.position,
             'price': self.price
         }
+
+    def __str__(self):
+        return f"{self.code}/{self.target_date}/{self.action}/{self.position}/{self.price}"
+
+    def __repr__(self):
+        return self.__str__()

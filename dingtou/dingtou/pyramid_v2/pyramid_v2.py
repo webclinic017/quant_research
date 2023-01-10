@@ -19,6 +19,7 @@ from dingtou.pyramid_v2.pyramid_v2_strategy import PyramidV2Strategy
 logger = logging.getLogger(__name__)
 
 stat_file_name = "debug/stat.csv"
+trade_file_name = "debug/trade.csv"
 
 """
 再test_timing基础上做的改进
@@ -42,6 +43,7 @@ def backtest(df_baseline: DataFrame, funds_data: dict, args):
     backtester.set_strategy(strategy)
 
     # 单独调用一个set_data，是因为里面要做特殊处理
+    # 这里的数据是全量数据（不是start_date~end_date的数据，原因是增大数据才能得到更客观的百分位数）
     backtester.set_data(df_baseline, funds_data)
 
     # 运行回测！！！
@@ -78,6 +80,7 @@ def print_trade_details(start_date, end_date, amount, df_baseline, fund_dict, df
     # 打印交易记录
     logger.info("交易记录：")
     print(tabulate(broker.df_trade_history, headers='keys', tablefmt='psql'))
+    broker.df_trade_history.to_csv(trade_file_name)
 
     # 打印期末持仓情况
     logger.info("期末持仓：")
@@ -85,12 +88,12 @@ def print_trade_details(start_date, end_date, amount, df_baseline, fund_dict, df
     print(tabulate(df, headers='keys', tablefmt='psql'))
 
     # 把统计结果df_stat写入到csv文件
-    logger.info("交易统计：")
-    with pd.option_context('display.max_rows', 100, 'display.max_columns', 100):
-        # df = df_stat[["基金代码","投资起始","投资结束","期初资金","期末现金","期末持仓","期末总值","组合收益率","组合年化","本金投入","本金投入","资金利用率","基准收益","基金收益","买次","卖次","持仓","成本","现价"]]
-        # df = df_stat[["基金代码", "投资起始", "投资结束", "期初资金", "期末现金", "期末持仓", "期末总值", "组合收益",
-        #               "组合年化", "资金利用率", "基准收益", "基金收益", "买次", "卖次"]]
-        print(tabulate(df, headers='keys', tablefmt='psql'))
+    # logger.info("交易统计：")
+    # with pd.option_context('display.max_rows', 100, 'display.max_columns', 100):
+    #     # df = df_stat[["基金代码","投资起始","投资结束","期初资金","期末现金","期末持仓","期末总值","组合收益率","组合年化","本金投入","本金投入","资金利用率","基准收益","基金收益","买次","卖次","持仓","成本","现价"]]
+    #     # df = df_stat[["基金代码", "投资起始", "投资结束", "期初资金", "期末现金", "期末持仓", "期末总值", "组合收益",
+    #     #               "组合年化", "资金利用率", "基准收益", "基金收益", "买次", "卖次"]]
+    #     print(tabulate(df, headers='keys', tablefmt='psql'))
     df_stat.to_csv(stat_file_name)
 
     return df_stat
@@ -141,17 +144,46 @@ def main(args):
 # 手工测试目前最优 ,512000,512560
 python -m dingtou.pyramid_v2.pyramid_v2 \
 -c 510310,510500,159915,588090 \
--s 20220101 \
+-s 20130101 \
 -e 20230101 \
 -b sh000001 \
 -a 0 \
--m 240 \
+-m 850 \
 -gs 1000 \
 -gh 0.01 \
 -qp 0.8 \
 -qn 0.2 \
 -bk
 # -m 480， -gs 1000， -a 50万，这几个组合是比较最优的了
+
+# 用程序找出的相关性小的30只ETF基金
+python -m dingtou.pyramid_v2.pyramid_v2 \
+-c 515980,515900,515880,515700,515680,515600,515300,515180,515080,512980,512960,512950,512890,512810,512680,512670,512660,512590,512580,512560,512400,512260,512200,512190,512100,512040,510900,510880,510590,510410,510170 \
+-s 20130101 \
+-e 20230101 \
+-b sh000001 \
+-a 0 \
+-m 850 \
+-gs 1000 \
+-gh 0.01 \
+-qp 0.8 \
+-qn 0.2 \
+-bk
+
+python -m dingtou.pyramid_v2.pyramid_v2 \
+-c 512950 \
+-s 20130101 \
+-e 20230101 \
+-b sh000001 \
+-a 0 \
+-m 850 \
+-gs 1000 \
+-gh 0.01 \
+-qp 0.8 \
+-qn 0.2 \
+-bk
+
+
 
 # windows上，和iquant/qmt对比测试用，不支持换行 
 python -m dingtou.pyramid_v2.pyramid_v2 -c 510500 -s 20160101 -e 20200101 -b sh000001 -a 200000 -m -480 -gs 100 -gh 0.01 -qp 0.8 -qn 0.2
