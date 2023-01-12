@@ -1,4 +1,5 @@
 import datetime
+import pickle
 
 import numpy as np
 import logging
@@ -137,6 +138,7 @@ def init_logger(file=False, simple=False, log_level=logging.DEBUG):
             if type(t) == cls: return True
         return False
 
+
     # 加入控制台
     if not is_any_handler(root_logger.handlers, logging.StreamHandler):
         stream_handler = logging.StreamHandler()
@@ -156,6 +158,16 @@ def init_logger(file=False, simple=False, log_level=logging.DEBUG):
         handler.setLevel(level=log_level)
         handler.setFormatter(formatter)
 
+def serialize(obj,file_path):
+    f = open(file_path, 'wb')
+    pickle.dump(obj, f)
+    f.close()
+
+def unserialize(file_path):
+    f = open(file_path, 'rb')
+    obj = pickle.load(f)
+    f.close()
+    return obj
 
 def __calc_OHLC_in_group(df_in_group):
     """

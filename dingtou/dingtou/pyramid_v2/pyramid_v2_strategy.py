@@ -1,6 +1,8 @@
+import os.path
+
 from dingtou.utils import utils
 from dingtou.backtest.strategy import Strategy
-from dingtou.utils.utils import get_value, date2str
+from dingtou.utils.utils import get_value, date2str, unserialize, serialize
 import logging
 import talib
 import pandas as pd
@@ -48,13 +50,21 @@ class PyramidV2Strategy(Strategy):
                  policy, grid_height,
                  quantile_positive,
                  quantile_negative,
-                 ma_days, end_date):
+                 ma_days, end_date,
+                 last_grid_position_file_path=None):
         super().__init__(broker, None)
         self.grid_height = grid_height  # 上涨时候网格高度，百分比，如0.008
         self.quantile_positive = quantile_positive
         self.quantile_negative = quantile_negative
         self.policy = policy
-        self.last_grid_position_dict = {}
+
+        if last_grid_position_file_path and os.path.exists(last_grid_position_file_path):
+            logger.debug("存在最后的网格位置文件，加载它：%s", last_grid_position_file_path)
+            self.last_grid_position_dict = unserialize(last_grid_position_file_path)
+        else:
+            self.last_grid_position_dict = {}
+
+        self.last_grid_position_file_path = last_grid_position_file_path # 序列化文件
         self.positive_threshold_dict = {}
         self.negative_threshold_dict = {}
 
@@ -62,6 +72,7 @@ class PyramidV2Strategy(Strategy):
 
         if type(end_date) == str: end_date = utils.str2date(end_date)
         self.end_date = end_date
+
 
         # 统计用
         self.buy_ok = 0
@@ -90,15 +101,26 @@ class PyramidV2Strategy(Strategy):
 
             # 计算价格到均价的距离
             df_daily_fund['diff_percent_close2ma'] = (df_daily_fund.close - df_daily_fund.ma) / df_daily_fund.ma
-            # 超过MA的30%的分位数
+
+            # 超过MA的80%的分位数
             positive_threshold = df_daily_fund[
                 df_daily_fund.diff_percent_close2ma > 0].diff_percent_close2ma.quantile(self.quantile_positive)
             self.positive_threshold_dict[code] = 1 + positive_threshold // self.grid_height
+            # logger.debug("[%s] %.0f%%分位数的正收益为%.2f%%, 在第%d个格",
+            #              code,
+            #              self.quantile_positive*100,
+            #              positive_threshold*100,
+            #              self.positive_threshold_dict[code] )
 
-            # 低于MA的30%的分位数
+            # 低于MA的20%的分位数
             negative_threshold = df_daily_fund[
                 df_daily_fund.diff_percent_close2ma < 0].diff_percent_close2ma.quantile(1 - self.quantile_negative)
             self.negative_threshold_dict[code] = negative_threshold // self.grid_height
+            # logger.debug("[%s] %.0f%%分位数的负收益为%.2f%%, 在第%d个格",
+            #              code,
+            #              self.quantile_negative*100,
+            #              negative_threshold*100,
+            #              self.negative_threshold_dict[code] )
 
             # 这个是为了画图用，画出上下边界区域
             df_daily_fund['ma_upper'] = df_daily_fund.ma * (1 + positive_threshold)
@@ -136,7 +158,9 @@ class PyramidV2Strategy(Strategy):
         current_grid_position = diff2last // self.grid_height if diff2last < 0 else 1 + diff2last // self.grid_height
         last_grid_position = 0 if self.last_grid_position_dict.get(code,None) is None else self.last_grid_position_dict[code]
 
-        if current_grid_position == last_grid_position: return  # 在同一个格子，啥也不干
+        if current_grid_position == last_grid_position:
+            logger.debug("[%s]%s 当前格子没有变化： 第%d个格子",date2str(today),code,current_grid_position)
+            return  # 在同一个格子，啥也不干
 
         # logger.debug(f"current_grid_position:{current_grid_position},last_grid_position:{last_grid_position},negative_threshold:{self.negative_threshold_dict[code]}")
 
@@ -160,6 +184,10 @@ class PyramidV2Strategy(Strategy):
                 # logger.debug("current_grid_position > self.negative_threshold: %d > %d",
                 #              current_grid_position, self.negative_threshold_dict[code])
                 self.last_grid_position_dict[code] = current_grid_position
+                if self.last_grid_position_file_path:
+                    serialize(self.last_grid_position_dict,self.last_grid_position_file_path)
+            return
+
 
 
         # 暂时不对敲了，只在高位区卖出，TODO
@@ -200,3 +228,15 @@ class PyramidV2Strategy(Strategy):
                 # logger.debug("current_grid_position > self.positive_threshold: %d > %d",
                 #              current_grid_position, self.positive_threshold_dict[code])
                 self.last_grid_position_dict[code] = current_grid_position
+                if self.last_grid_position_file_path:
+                    serialize(self.last_grid_position_dict,self.last_grid_position_file_path)
+
+            return
+
+        # logger.debug("未触发交易: %s 差异[%.4f],当前格[%d],上次格[%d],正阈值格[%d],负阈值格[%d]",
+        #              code,
+        #              diff2last,
+        #              current_grid_position,
+        #              last_grid_position,
+        #              self.positive_threshold_dict[code],
+        #              self.negative_threshold_dict[code])
