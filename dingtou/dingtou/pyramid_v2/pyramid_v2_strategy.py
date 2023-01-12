@@ -97,7 +97,9 @@ class PyramidV2Strategy(Strategy):
                 df_daily_fund['ma242'] = talib.SMA(df_daily_fund.close, timeperiod=242)
             else:
                 # 如果是self.ma_days是正值，用N天的均线
-                df_daily_fund['ma'] = talib.SMA(df_daily_fund.close, timeperiod=self.ma_days)
+                # df_daily_fund['ma'] = talib.SMA(df_daily_fund.close, timeperiod=self.ma_days)
+                # 不用talib的sma，是因为，ma_days取850的时候，会出现850个na，所以用pandas的rolling，使用min_periods避免nan
+                df_daily_fund['ma'] = df_daily_fund.close.rolling(window=self.ma_days,min_periods=1).mean()
 
             # 计算价格到均价的距离
             df_daily_fund['diff_percent_close2ma'] = (df_daily_fund.close - df_daily_fund.ma) / df_daily_fund.ma
@@ -137,6 +139,12 @@ class PyramidV2Strategy(Strategy):
 
 
     def get_current_diff_percent(self,df_daily_fund,today):
+        """
+        获得当前价格，距离均线的距离，
+        :param df_daily_fund:
+        :param today:
+        :return:
+        """
         s_daily_fund = get_value(df_daily_fund, today)
         if s_daily_fund is None: return None
         if pd.isna(s_daily_fund.diff_percent_close2ma): return None
@@ -150,11 +158,11 @@ class PyramidV2Strategy(Strategy):
         :param target_date:
         :return:
         """
-
+        if diff2last is None:
+            return
 
         # 当前和上次位置的距离（单位是百分比）
         # 得到格子数，有可能是负数，。。。， -3，-2，-1，1，2，3，。。。，下面的if/else写法就是为了得到这个当前点位位于的格子编号
-
         current_grid_position = diff2last // self.grid_height if diff2last < 0 else 1 + diff2last // self.grid_height
         last_grid_position = 0 if self.last_grid_position_dict.get(code,None) is None else self.last_grid_position_dict[code]
 
@@ -162,7 +170,6 @@ class PyramidV2Strategy(Strategy):
             logger.debug("[%s]%s 当前格子没有变化： 第%d个格子",date2str(today),code,current_grid_position)
             return  # 在同一个格子，啥也不干
 
-        # logger.debug(f"current_grid_position:{current_grid_position},last_grid_position:{last_grid_position},negative_threshold:{self.negative_threshold_dict[code]}")
 
         # 如果在均线下方，且，比上次的还低1~N个格子，那么就买入
         if current_grid_position < 0 and \
@@ -188,26 +195,6 @@ class PyramidV2Strategy(Strategy):
                     serialize(self.last_grid_position_dict,self.last_grid_position_file_path)
             return
 
-
-
-        # 暂时不对敲了，只在高位区卖出，TODO
-        # # 如果在均线下方，且，比上次的还高1~N个格子，且，在对敲(overlap)区，那么就卖出对应的份数
-        # if 0 > current_grid_position > last_grid_position and \
-        #     positions = self.policy.calculate(current_grid_position, 'sell')
-        #     if self.broker.sell(s_daily_fund.code, target_date, position=positions):
-        #         logger.debug(">>[%s]%s均线下方%.1f%%/第%d格,高于上次(第%d格),对敲卖出%.1f份  (对敲) 基===>钱",
-        #                      date2str(today),
-        #                      s_daily_fund.code,
-        #                      s_daily_fund.diff_percent_close2ma * 100,
-        #                      current_grid_position,
-        #                      self.last_grid_position_dict[s_daily_fund.code] * 100,
-        #                      positions)
-        #         self.last_grid_position_dict[s_daily_fund.code] = current_grid_position
-        #         self.sell_ok += 1
-        #     else:
-        #         if self.broker.positions.get(s_daily_fund.code, None) is not None:
-        #             self.sell_fail += 1
-        #     return
 
         # logger.debug("current:%d,last:%d,diff:%.2f%%",current_grid_position,last_grid_position,diff2last*100)
 

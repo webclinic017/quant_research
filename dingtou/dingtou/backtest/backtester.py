@@ -1,6 +1,6 @@
 import logging
 
-from dingtou.utils.utils import str2date
+from dingtou.utils.utils import str2date, date2str
 
 logger = logging.getLogger(__name__)
 
@@ -75,7 +75,12 @@ class BackTester():
             if i == len(self.dates) - 1: continue  # 防止越界
             # 是当天价来交易，还是以下一个交易日来交易
             trade_day = today if self.buy_day=='today' else self.dates[i + 1]
+
+            # 这里会产生买单和卖单
             self.strategy.next(today=today, trade_date=trade_day)
 
             # 触发交易代理的执行，这里才会真正的执行交易
             self.broker.run(today)
+
+            # logger.debug("[%s]日的回测结束了...",date2str(today))
+            # logger.debug("-"*80)

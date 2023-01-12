@@ -155,6 +155,7 @@ class Broker:
         """
         # 如果今天还没到买单的日期，就退出这个trade的交易
         if trade.target_date > today:
+            # logger.debug("交易日期")
             return False
 
         # 先获得这笔交易对应的数据
@@ -302,7 +303,7 @@ class Broker:
                            self.total_cash)
             return False
         self.trades.append(Trade(code, date, amount, position, 'buy'))
-        logger.debug("创建下个交易日[%s]买单，买入基金[%s]%r元/%r份", date2str(date), code, amount, position)
+        logger.debug("创建目标交易日[%s]买单，买入基金[%s]%r元/%r份", date2str(date), code, amount, position)
         return True
 
     def sell(self, code, date, amount=None, position=None):
@@ -329,7 +330,7 @@ class Broker:
             position = self.positions[code].position
 
         self.trades.append(Trade(code, date, amount, position, 'sell'))
-        logger.debug("创建下个交易日[%s]卖单，卖出持仓基金 [%s] %r元/%r份",
+        logger.debug("创建目标交易日[%s]卖单，卖出持仓基金 [%s] %r元/%r份",
                      date2str(date),
                      code,
                      amount,
@@ -410,7 +411,7 @@ class Broker:
         # 当前仓位（已经更新了今日的了）
         position = self.positions[fund_code].position
 
-        # 当前市值
+        # 更新当天市值
         if price==0:
             # 如果当天没有价格，就使用前一日的市场价值做为最新
             fund_position_value = self.fund_market_dict[fund_code].iloc[-1].position_value
@@ -451,8 +452,13 @@ class Broker:
         """
         original_position_size = len(self.positions)
 
-        # 先执行卖出操作
-        for trade in self.trades:
+        # 先执行买入和卖出操作
+        # bugfix:2023.1.9，很低级的一个错误，在list遍历的时候，删除元素导致bug，
+        # 解决办法是，从后往前遍历，这样删除就不会导致遍历问题了
+        # https://blog.csdn.net/cckavin/article/details/83618306
+        # 倒序删除: 因为列表总是“向前移”，所以可以倒序遍历，即使后面的元素被修改了，还没有被遍历的元素和其坐标还是保持不变的。
+        for i in range(len(self.trades)-1,-1,-1):
+            trade = self.trades[i]
             if trade.action == 'sell':
                 self.real_sell(trade, day_date)
             else:
