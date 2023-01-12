@@ -23,7 +23,7 @@ def plot(start_date, end_date, broker, df_baseline, df_portfolio, fund_dict, df_
 
     plt.clf()
 
-    fig = plt.figure(figsize=(50, 50), dpi=(200))
+    fig = plt.figure(figsize=(50, 10+6*len(fund_dict)), dpi=(100))
     # fig.set_figheight()
     row = 3 + len(fund_dict)
     col = 1
@@ -80,8 +80,6 @@ def plot(start_date, end_date, broker, df_baseline, df_portfolio, fund_dict, df_
     # 画出每只基金的持仓情况
     for code, df_fund in fund_dict.items():
 
-        pos += 1
-
         # 只过滤回测期间的数据
         df_fund = df_fund[(df_fund.index > start_date) & (df_fund.index < end_date)]
         df_portfolio = df_portfolio[(df_portfolio.index > start_date) & (df_portfolio.index < end_date)]
@@ -103,12 +101,15 @@ def plot(start_date, end_date, broker, df_baseline, df_portfolio, fund_dict, df_
             logger.warning("基金[%s] 在%s~%s未发生交易市值变化", code, date2str(start_date), date2str(end_date))
             continue
 
+        pos += 1
+
         # 画一直基金的信息
         plot_fund(fig, row, col, pos, df_fund, df_fund_market, df_buy_trades, df_sell_trades)
 
     # 保存图片
     fig.tight_layout()
-    fig.savefig(f"debug/report_{date2str(start_date)}_{date2str(end_date)}.svg", dpi=200, format='svg')
+    codes = "_".join([k for k, v in fund_dict.items()])[:100]
+    fig.savefig(f"debug/report_{date2str(start_date)}_{date2str(end_date)}_{codes}.svg", dpi=200, format='svg')
 
 
 def plot_fund(fig, row, col, pos, df_fund, df_fund_market_value, df_buy_trades, df_sell_trades):

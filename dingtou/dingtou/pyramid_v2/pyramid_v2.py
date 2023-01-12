@@ -18,8 +18,6 @@ from dingtou.pyramid_v2.pyramid_v2_strategy import PyramidV2Strategy
 
 logger = logging.getLogger(__name__)
 
-stat_file_name = "debug/stat.csv"
-trade_file_name = "debug/trade.csv"
 
 """
 再test_timing基础上做的改进
@@ -76,6 +74,10 @@ def print_trade_details(start_date, end_date, amount, df_baseline, fund_dict, df
         df_stat = df_stat.append(stat, ignore_index=True)
 
     if len(df_stat) == 0: return df_stat
+
+    codes = "_".join([k for k,v in fund_dict.items()])[:100]
+    stat_file_name = f"debug/stat_{date2str(start_date)}_{date2str(end_date)}_{codes}.csv"
+    trade_file_name = f"debug/trade_{date2str(start_date)}_{date2str(end_date)}_{codes}.csv"
 
     # 打印交易记录
     logger.info("交易记录：")
@@ -144,7 +146,7 @@ def main(args):
 # 手工测试目前最优 ,512000,512560
 python -m dingtou.pyramid_v2.pyramid_v2 \
 -c 510310,510500,159915,588090 \
--s 20130101 \
+-s 20220101 \
 -e 20230101 \
 -b sh000001 \
 -a 0 \
@@ -159,7 +161,7 @@ python -m dingtou.pyramid_v2.pyramid_v2 \
 # 用程序找出的相关性小的30只ETF基金
 python -m dingtou.pyramid_v2.pyramid_v2 \
 -c 515980,515900,515880,515700,515680,515600,515300,515180,515080,512980,512960,512950,512890,512810,512680,512670,512660,512590,512580,512560,512400,512260,512200,512190,512100,512040,510900,510880,510590,510410,510170 \
--s 20130101 \
+-s 20220101 \
 -e 20230101 \
 -b sh000001 \
 -a 0 \
