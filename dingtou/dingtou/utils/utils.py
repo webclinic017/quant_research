@@ -1,4 +1,5 @@
 import datetime
+import json
 import pickle
 
 import numpy as np
@@ -159,14 +160,19 @@ def init_logger(file=False, simple=False, log_level=logging.DEBUG):
         handler.setFormatter(formatter)
 
 def serialize(obj,file_path):
-    f = open(file_path, 'wb')
-    pickle.dump(obj, f)
-    f.close()
+    # pickle是二进制的，不喜欢，改成json序列化了
+    # f = open(file_path, 'wb')
+    # pickle.dump(obj, f)
+    # f.close()
+    with open(file_path, "w") as f:
+        json.dump(obj, f, indent=2)
 
 def unserialize(file_path):
-    f = open(file_path, 'rb')
-    obj = pickle.load(f)
-    f.close()
+    # f = open(file_path, 'rb')
+    # obj = pickle.load(f)
+    # f.close()
+    with open(file_path, 'r') as f:
+        obj = json.load(f)
     return obj
 
 def __calc_OHLC_in_group(df_in_group):
