@@ -220,10 +220,10 @@ class PyramidV2Strategy(Strategy):
 
             return
 
-        # logger.debug("未触发交易: %s 差异[%.4f],当前格[%d],上次格[%d],正阈值格[%d],负阈值格[%d]",
-        #              code,
-        #              diff2last,
-        #              current_grid_position,
-        #              last_grid_position,
-        #              self.positive_threshold_dict[code],
-        #              self.negative_threshold_dict[code])
+        logger.debug("未触发交易: %s 差异[%.4f],当前格[%d],上次格[%d],正阈值格[%d],负阈值格[%d]",
+                     code,
+                     diff2last,
+                     current_grid_position,
+                     last_grid_position,
+                     self.positive_threshold_dict[code],
+                     self.negative_threshold_dict[code])
