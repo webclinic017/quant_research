@@ -46,8 +46,10 @@ class PyramidV2Strategy(Strategy):
 
     """
 
-    def __init__(self, broker,
-                 policy, grid_height,
+    def __init__(self,
+                 broker,
+                 policy,
+                 grid_height,
                  quantile_positive,
                  quantile_negative,
                  ma_days, end_date,
