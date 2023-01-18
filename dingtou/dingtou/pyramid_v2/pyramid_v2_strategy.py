@@ -136,8 +136,8 @@ class PyramidV2Strategy(Strategy):
 
         # 遍历每一只基金，分别处理
         for fund_code, df_fund in self.funds_dict.items():
-            diff2last = self.get_current_diff_percent(df_fund,today)
-            self.handle_one_fund(fund_code, today, diff2last)
+            diff2last,price = self.get_current_diff_percent(df_fund,today)
+            self.handle_one_fund(fund_code, today, price, diff2last)
 
 
     def get_current_diff_percent(self,df_daily_fund,today):
@@ -148,11 +148,11 @@ class PyramidV2Strategy(Strategy):
         :return:
         """
         s_daily_fund = get_value(df_daily_fund, today)
-        if s_daily_fund is None: return None
-        if pd.isna(s_daily_fund.diff_percent_close2ma): return None
-        return s_daily_fund.diff_percent_close2ma
+        if s_daily_fund is None: return None,None
+        if pd.isna(s_daily_fund.diff_percent_close2ma): return None,None
+        return s_daily_fund.diff_percent_close2ma, s_daily_fund.close
 
-    def handle_one_fund(self, code, today, diff2last):
+    def handle_one_fund(self, code, today, price, diff2last):
         """
         处理一只基金
         :param df_daily_fund:
@@ -173,12 +173,17 @@ class PyramidV2Strategy(Strategy):
             return  # 在同一个格子，啥也不干
 
 
-        # 如果在均线下方，且，比上次的还低1~N个格子，那么就买入
+        """
+        如果在均线下方，且，比上次的还低1~N个格子，那么就买入
+        实盘的时候，我会把每个标的的最后一次的购买网格位置记录到文件中，
+        但是如果没有记录，说明是第一次买入，我本来计划判断是在下跌趋势（就是目前价格是10个交易日内最低），
+        但是后来觉得没有必要，因为只要是在这个点位就是我要购入的点位，不管他上涨还是下跌，直到他趋势反转再跌下来，我才会再买。
+        """
         if current_grid_position < 0 and \
                 current_grid_position < last_grid_position and \
                 current_grid_position < self.negative_threshold_dict[code]:
             # 根据偏离均线幅度，决定购买的份数
-            positions = self.policy.calculate(current_grid_position, 'buy')
+            positions = self.policy.calculate(price,current_grid_position, 'buy')
             # 买入
             if self.broker.buy(code,
                                today,
@@ -204,7 +209,7 @@ class PyramidV2Strategy(Strategy):
         if current_grid_position > last_grid_position and \
                 current_grid_position > 0 and \
                 current_grid_position > self.positive_threshold_dict[code]:
-            positions = self.policy.calculate(current_grid_position, 'sell')
+            positions = self.policy.calculate(price, current_grid_position, 'sell')
             # 扣除手续费后，下取整算购买份数
             if self.broker.sell(code, today, position=positions):
                 logger.debug(">>[%s]%s距离均线%.1f%%/%d个格,高于上次[第%d格],卖出%.1f份  基===>钱",

@@ -30,7 +30,10 @@ def backtest(df_baseline: DataFrame, funds_data: dict, args):
     broker.set_buy_commission_rate(0.0001)  # 参考华宝证券：ETF手续费万1，单笔最低0.2元
     broker.set_sell_commission_rate(0)
     backtester = BackTester(broker, args.start_date, args.end_date, buy_day='today')
-    policy = PositionCalculator(args.grid_share)
+    if args.grid_share:
+        policy = PositionCalculator(args.grid_share)
+    else:
+        policy = PositionCalculator(args.grid_amount)
     strategy = PyramidV2Strategy(broker,
                                  policy,
                                  args.grid_height,
@@ -146,12 +149,12 @@ def main(args):
 # 手工测试目前最优 ,512000,512560
 python -m dingtou.pyramid_v2.pyramid_v2 \
 -c 510310,510500,159915,588090 \
--s 20220101 \
+-s 20130101 \
 -e 20230101 \
 -b sh000001 \
 -a 0 \
 -m 850 \
--gs 1000 \
+-ga 10000 \
 -gh 0.01 \
 -qp 0.8 \
 -qn 0.2 \
@@ -166,7 +169,7 @@ python -m dingtou.pyramid_v2.pyramid_v2 \
 -b sh000001 \
 -a 0 \
 -m 850 \
--gs 1000 \
+-ga 10000 \
 -gh 0.01 \
 -qp 0.8 \
 -qn 0.2 \
@@ -217,7 +220,8 @@ if __name__ == '__main__':
     parser.add_argument('-bk', '--bank', action='store_true')
     parser.add_argument('-m', '--ma', type=int, default=-480, help=">0:间隔ma天的移动均线,<0:回看的最大最小值的均值")
     parser.add_argument('-gh', '--grid_height', type=float, default=0.02, help="格子的高度，百分比，默认1%")
-    parser.add_argument('-gs', '--grid_share', type=int, default=100, help="每格子的基础份额")
+    parser.add_argument('-gs', '--grid_share', type=int, default=None, help="每格子的基础份额")
+    parser.add_argument('-ga', '--grid_amount', type=int, default=None, help="每格子的基础金额")
     parser.add_argument('-qn', '--quantile_negative', type=float, default=0.3, help="均线下百分数区间")
     parser.add_argument('-qp', '--quantile_positive', type=float, default=0.3, help="均线上百分数区间")
 
