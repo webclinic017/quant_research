@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 from pandas.plotting import table
 
 from utils.utils import date2str
+import mplfinance as mpf
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +24,7 @@ def plot(start_date, end_date, broker, df_baseline, df_portfolio, fund_dict, df_
 
     plt.clf()
 
-    fig = plt.figure(figsize=(50, 10+6*len(fund_dict)), dpi=(100))
+    fig = plt.figure(figsize=(50, 10 + 6 * len(fund_dict)), dpi=(100))
     # fig.set_figheight()
     row = 3 + len(fund_dict)
     col = 1
@@ -96,7 +97,7 @@ def plot(start_date, end_date, broker, df_baseline, df_portfolio, fund_dict, df_
             (broker.df_trade_history.code == code) & (broker.df_trade_history.action == 'buy')]
         df_sell_trades = broker.df_trade_history[
             (broker.df_trade_history.code == code) & (broker.df_trade_history.action == 'sell')]
-        df_fund_market = broker.fund_market_dict.get(code,None)
+        df_fund_market = broker.fund_market_dict.get(code, None)
         if df_fund_market is None:
             logger.warning("基金[%s] 在%s~%s未发生交易市值变化", code, date2str(start_date), date2str(end_date))
             continue
@@ -144,7 +145,28 @@ def plot_fund(fig, row, col, pos, df_fund, df_fund_market_value, df_buy_trades, 
     ax_fund_accumulate = ax.twinx()  # 返回共享x轴的第3个轴
     ax_fund_accumulate.set_ylabel('累计净值', color='g')  # 设置Y轴标题
     ax_fund_accumulate.spines['right'].set_position(('outward', 60))  # right, left, top, bottom
-    h_fund_accumulate, = ax_fund_accumulate.plot(df_fund.index, df_fund.close, 'b', linewidth=2)
+    # h_fund_accumulate, = ax_fund_accumulate.plot(df_fund.index, df_fund.close, 'b', linewidth=2)
+    mc = mpf.make_marketcolors(
+        up='red',
+        down='green',
+        edge='i',
+        wick='i',
+        volume='in',
+        inherit=True)
+    s = mpf.make_mpf_style(
+        gridaxis='both',
+        gridstyle='-.',
+        y_on_right=False,
+        marketcolors=mc)
+    kwargs = dict(
+        type='candle',
+        volume=False,
+        title='基金的走势',
+        ylabel='K线',
+        ylabel_lower='')  # ,figratio=(15, 10)
+    # print(df_fund)
+    # import pdb;pdb.set_trace()
+    mpf.plot(df_fund, ax=ax_fund_accumulate, style=s, type='candle', show_nontrading=True)
 
     # 画累计净值基金均线
     h_fund_sma, = ax_fund_accumulate.plot(df_fund.index, df_fund.ma, color='#6495ED', linestyle='--', linewidth=1)
@@ -182,6 +204,6 @@ def plot_fund(fig, row, col, pos, df_fund, df_fund_market_value, df_buy_trades, 
     ax_position_value.set_ylabel('持仓价值变化', color='g')  # 设置Y轴标题
     h_position_value, = ax_position_value.plot(df_fund_market_value.date, df_fund_market_value.position_value, 'c')
 
-    plt.legend(handles=[h_cost, h_fund_accumulate, h_fund_sma, h_position, h_position_value],
-               labels=['成本线', f'基金{code}累计净值', '累计净值均线', '持仓份数', '持仓市值'],
+    plt.legend(handles=[h_cost, h_fund_sma, h_position, h_position_value],
+               labels=['成本线', '累计净值均线', '持仓份数', '持仓市值'],
                loc='best')
