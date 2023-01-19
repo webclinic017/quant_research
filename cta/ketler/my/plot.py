@@ -164,33 +164,24 @@ def plot_fund(fig, row, col, pos, df_fund, df_fund_market_value, df_buy_trades, 
         title='基金的走势',
         ylabel='K线',
         ylabel_lower='')  # ,figratio=(15, 10)
-    # print(df_fund)
-    # import pdb;pdb.set_trace()
     mpf.plot(df_fund, ax=ax_fund_accumulate, style=s, type='candle', show_nontrading=True)
+    # 画出上下规定的边界区域
+    ax_fund_accumulate.fill_between(df_fund.index, df_fund.upper, df_fund.lower, alpha=0.2)
 
-    # 画累计净值基金均线
-    h_fund_sma, = ax_fund_accumulate.plot(df_fund.index, df_fund.ma, color='#6495ED', linestyle='--', linewidth=1)
 
-    # 额外画一个年线，来参考用
-    if 'ma242' in df_fund.columns:
-        ax_fund_accumulate.plot(df_fund.index, df_fund.ma242, color='#7FFFAA', linestyle='--', linewidth=0.5)
+    # 画均线
+    h_fund_sma, = ax_fund_accumulate.plot(df_fund.index, df_fund.expo, color='#6495ED', linestyle='--', linewidth=1)
+
     # 画买卖信号
     ax_fund_accumulate.scatter(df_buy_trades.actual_date, df_buy_trades.price, marker='^', c='r', s=40)
+
     # 不一定有卖
     if len(df_sell_trades) > 0:
         ax_fund_accumulate.scatter(df_sell_trades.actual_date, df_sell_trades.price, marker='v', c='g', s=40)
-    # 画成我持仓成本线
 
+    # 画成我持仓成本线
     h_cost, = ax_fund_accumulate.plot(df_fund_market_value.date, df_fund_market_value.cost, 'm', linestyle='--',
                                       linewidth=0.5)
-    """
-        :param df_fund_market_value:  投资这只基金的市值变化信息
-                df_fund_market_value.append({'date': date,
-                     'position_value': fund_position_value,  # 市值
-                     'position': position,  # 持仓
-                     'cost': cost}, ignore_index=True)  # 成本
-    
-    """
 
     # 画仓位数量变化
     ax_position = ax.twinx()  # 返回共享x轴的第二个轴
