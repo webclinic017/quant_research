@@ -342,7 +342,7 @@ class Broker:
     def sell_out(self, code, date):
         """清仓单"""
         position = self.positions[code]
-        self.sell(code, date, position=position.position)
+        return self.sell(code, date, position=position.position)
 
     def update_total_market_value(self, date):
         """

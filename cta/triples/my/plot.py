@@ -173,11 +173,11 @@ def plot_fund(fig, row, col, pos, df_fund, df_fund_market_value, df_buy_trades, 
     h_fund_sma, = ax_fund_accumulate.plot(df_fund.index, df_fund.expo, color='#6495ED', linestyle='--', linewidth=1)
 
     # 画买卖信号
-    ax_fund_accumulate.scatter(df_buy_trades.actual_date, df_buy_trades.price, marker='^', c='r', s=100,  alpha=0.3)
+    ax_fund_accumulate.scatter(df_buy_trades.actual_date, df_buy_trades.price, marker='^', c='r', s=40)
 
     # 不一定有卖
     if len(df_sell_trades) > 0:
-        ax_fund_accumulate.scatter(df_sell_trades.actual_date, df_sell_trades.price, marker='v', c='g', s=100,  alpha=0.3)
+        ax_fund_accumulate.scatter(df_sell_trades.actual_date, df_sell_trades.price, marker='v', c='g', s=40)
 
     # 画成我持仓成本线
     h_cost, = ax_fund_accumulate.plot(df_fund_market_value.date, df_fund_market_value.cost, 'm', linestyle='--',

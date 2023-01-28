@@ -19,7 +19,7 @@ class KetlerStrategy(bt.Strategy):
 
     def next(self):
 
-        # 如果空仓
+        # 如果空仓,收盘价突破上轨,尝试买入
         if self.getposition(self.data).size == 0:
             if self.data.close[0] > self.ketler.upper[0]:
                 self.order_target_percent(target=0.95)
