@@ -20,8 +20,8 @@ def main(start_date, end_date, code):
     cerebro.adddata(data, name=code)
 
     cerebro.broker.setcash(cash)
-    cerebro.broker.setcommission(commission=0.004)
-    cerebro.broker.set_slippage_perc(0.01)  # 1%的滑点
+    cerebro.broker.setcommission(commission=0.002)
+    cerebro.broker.set_slippage_perc(0.000)  # 0%的滑点
     cerebro.addanalyzer(bt.analyzers.TradeAnalyzer, _name='trade')
     cerebro.addstrategy(KetlerStrategy)
     results = cerebro.run(runonce=False)
@@ -68,8 +68,7 @@ if __name__ == '__main__':
 
     utils.init_logger()
 
-    stop_loss = 0.1  # 10%的最大回撤容忍
-    cash = 1000000
+    cash = 100000 # 10万
 
     start_time = time.time()
     parser = argparse.ArgumentParser()

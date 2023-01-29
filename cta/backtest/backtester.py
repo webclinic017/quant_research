@@ -80,10 +80,10 @@ class BackTester():
             logger.debug("[%s]  ----",date2str(today))
 
             # 触发交易代理的执行，这里才会真正的执行交易，这个要在策略之前做，非常重要！
+            # bugfix:2023.1,必须要在next之前运行，因为股票会挂第二天的单，所以一天开始，手下要先做交易，然后再回测策略
             self.broker.run(today)
 
             # 这里会产生买单和卖单
             self.strategy.next(today=today, trade_date=trade_day)
-
 
             # logger.debug("[%s]日的回测结束了...",date2str(today))

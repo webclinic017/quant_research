@@ -22,10 +22,10 @@ logger = logging.getLogger(__name__)
 
 
 def backtest(df_baseline: DataFrame, df_dict, args):
-    banker = Banker()
-    broker = Broker(0, banker)
-    broker.set_buy_commission_rate(0.0001)  # 参考华宝证券：ETF手续费万1，单笔最低0.2元
-    broker.set_sell_commission_rate(0)
+    # 是否可以透支？
+    # banker = Banker()
+    banker = None
+    broker = Broker(args.amount, banker)
     backtester = BackTester(broker, args.start_date, args.end_date, buy_day='tomorrow')
     strategy = KelterStrategy(broker, args.atr, args.ema)
     backtester.set_strategy(strategy)
@@ -135,7 +135,8 @@ python -m ketler.my.main \
 -c 300347.SZ \
 -s 20200101 \
 -e 20220501 \
--a 17 \
+-a 100000 \
+-at 17 \
 -em 20
 """
 if __name__ == '__main__':
@@ -147,8 +148,9 @@ if __name__ == '__main__':
     parser.add_argument('-e', '--end_date', type=str, default="20221201", help="结束日期")
     parser.add_argument('-b', '--baseline', type=str, default=None, help="基准指数，这个策略里就是基金本身")
     parser.add_argument('-c', '--code', type=str, help="股票代码")
-    parser.add_argument('-a', '--atr', type=int, default=17)
-    parser.add_argument('-em', '--ema', type=int, default=20)
+    parser.add_argument('-a', '--amount', type=int, default=100000)
+    parser.add_argument('-at', '--atr', type=int, default=17)
+    parser.add_argument('-em', '--ema', type=int, default=20) # 移动均值天数
 
     args = parser.parse_args()
     print(args)

@@ -35,7 +35,7 @@ class KelterStrategy(Strategy):
             # 如果空仓
             if not self.get_position(code) or self.get_position(code).position == 0:
                 if s.close > s.upper:
-                    if self.broker.buy(code, trade_date, amount=10000):
+                    if self.broker.buy(code, trade_date, amount=self.broker.total_cash):
                         logger.debug('[%r] 挂买单，股票[%s]/目标日期[%s]', date2str(today), code, date2str(trade_date))
             # 如果持仓
             else:

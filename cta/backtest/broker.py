@@ -10,8 +10,9 @@ from utils.utils import date2str
 
 logger = logging.getLogger(__name__)
 
-BUY_COMMISSION_RATE = 0.015  # 买入手续费1.5%
-SELL_COMMISSION_RATE = 0.005  # 卖出手续费0.5%
+# commission = 0.002  # 印花税 1‰(千1) + 过户费0.02‰(万0.2) + 券商交易佣金0.25‰(万2.5)
+BUY_COMMISSION_RATE = 0.002  # 买入手续费1.5%
+SELL_COMMISSION_RATE = 0.000  # 卖出手续费0.5%
 
 
 def next_trade_day(date, df_calendar):
@@ -103,7 +104,7 @@ class Broker:
             logger.warning("基金[%s]没有在[%s]无数据，无法买入，只能延后", trade.code, date)
             return False
 
-        price = series_fund.close
+        price = series_fund.open # 要用开盘价来买入
 
         # 计算可以买多少份基金，是扣除了手续费的金额 / 基金当天净值，下取整
         if trade.position is None:
@@ -114,7 +115,7 @@ class Broker:
 
         # 如果卖出份数大于持仓，就只卖出所有持仓
         if position > self.positions[trade.code].position:
-            logger.warning("[%s]卖出基金[%s]份数%d>持仓%d，等同于清仓",
+            logger.warning("[%s] 卖出基金[%s]份数%d>持仓%d，等同于清仓",
                            date2str(date),
                            trade.code,
                            position,
@@ -129,8 +130,17 @@ class Broker:
         # 更新头寸,仓位,交易历史
         self.trades.remove(trade)
         self.add_trade_history(trade, date, price)
+
+        logger.debug("[%s] [%s]以[%.2f]卖出[%.2f份/%.2f元],佣金[%.2f]",
+                     date2str(date),
+                     trade.code,
+                     price,
+                     position,
+                     amount,
+                     commission)
+
         # 计算卖出获得现金的时候，要刨除手续费
-        self.cashin(amount - commission)
+        self.cashin(date, amount - commission)
 
         # 创建，或者，更新持仓
         self.positions[trade.code].update(date, -position, price)
@@ -138,13 +148,6 @@ class Broker:
             logger.info("基金[%s]仓位为0，清仓", trade.code)
             self.positions.pop(trade.ts_code, None)  # None可以防止pop异常
 
-        logger.debug("[%s]于[%s]以[%.2f]卖出[%.2f份/%.2f元],佣金[%.2f]",
-                     trade.code,
-                     date2str(date),
-                     price,
-                     position,
-                     amount,
-                     commission)
         return True
 
     def real_buy(self, trade, today):
@@ -206,13 +209,11 @@ class Broker:
 
         if self.banker and buy_value + commission > self.total_cash:
                 self.banker.credit(buy_value + commission - self.total_cash)
-                logger.warning("[%s]购买基金[%s]金额不足，从银行借%.2f元",
+                logger.warning("[%s] 购买基金[%s]金额不足，从银行借%.2f元",
                                date2str(today),
                                trade.code,
                                buy_value + commission - self.total_cash)
 
-        # 现金流出：购买的价值 + 佣金，计算买入需要的现金的时候，要加上手续费
-        self.cashout(buy_value + commission)
 
         # 买不到任何一个整数份数，就退出
         if position == 0:
@@ -221,6 +222,7 @@ class Broker:
             # 这笔交易就放弃了
             self.trades.remove(trade)
             return False
+
 
         # 记录累计佣金
         self.total_commission += commission
@@ -235,7 +237,7 @@ class Broker:
         else:
             self.positions[trade.code] = Position(trade.code, position, price, today)
 
-        logger.debug("[%s]以[%.2f]价格买入[%s] %d份/%.2f元,佣金[%.2f],总持仓:%.0f份",
+        logger.debug("[%s] 以[%.2f]价格买入[%s] %d份/%.2f元,佣金[%.2f],总持仓:%.0f份",
                      date2str(today),
                      price,
                      trade.code,
@@ -243,9 +245,13 @@ class Broker:
                      buy_value,
                      commission,
                      self.positions[trade.code].position)
+
+        # 现金流出：购买的价值 + 佣金，计算买入需要的现金的时候，要加上手续费
+        self.cashout(today,buy_value + commission)
+
         return True
 
-    def cashin(self, amount):
+    def cashin(self, date, amount):
         """
         卖出时候的现金增加
         :param amount:
@@ -254,14 +260,15 @@ class Broker:
         # 我的总现金量的变多了
         old_total_cash = self.total_cash
         self.total_cash += amount
-        logger.debug("总现金：%.2f+%.2f=>%.2f元，其中，总持仓：%.2f元，总市值：%.2f元",
+        logger.debug("[%s] 总现金变化：%.2f+%.2f=>%.2f元，其中，总持仓：%.2f元，总市值：%.2f元",
+                     date2str(date),
                      old_total_cash,
                      amount,
                      self.total_cash,
                      self.get_total_position_value(),
                      self.get_total_value())
 
-    def cashout(self, amount):
+    def cashout(self, date, amount):
 
         # 我的总资金量的变化
         old_total_cash = self.total_cash
@@ -269,7 +276,8 @@ class Broker:
         if self.total_cash<0:
             self.total_cash = 0 # 防止多减
 
-        logger.debug("总现金：%.2f-%.2f=>%.2f元，其中，总持仓：%.2f元，总市值：%.2f元",
+        logger.debug("[%s] 总现金：%.2f-%.2f=>%.2f元，其中，总持仓：%.2f元，总市值：%.2f元",
+                     date2str(date),
                      old_total_cash,
                      amount,
                      self.total_cash,

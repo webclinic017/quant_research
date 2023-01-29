@@ -1,5 +1,6 @@
 import datetime
 import json
+import math
 import pickle
 
 import numpy as np
@@ -263,3 +264,19 @@ class AStockPlotScheme(Tradimo):
         self.bardown_outline = self.bardown
         self.volup = self.barup
         self.voldown = self.bardown
+
+def calc_size(cash, price, commission_rate):
+    """
+    用来计算可以购买的股数：
+    1、刨除手续费
+    2、要是100的整数倍
+    为了保守起见，用涨停价格来买，这样可能会少买一些。
+    之前我用当天的close价格来算size，如果不打富余，第二天价格上涨一些，都会导致购买失败。
+    """
+
+    # 按照一个保守价格来买入
+    size = math.ceil(cash * (1 - commission_rate) / price)
+
+    # 要是100的整数倍
+    size = (size // 100) * 100
+    return size
