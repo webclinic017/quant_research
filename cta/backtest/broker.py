@@ -6,7 +6,7 @@ import math
 
 from backtest.position import Position
 from backtest.trade import Trade
-from utils.utils import date2str
+from utils.utils import date2str, calc_size
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +37,7 @@ class Broker:
     - 持仓：就是我某只股票的仓位
     """
 
-    def __init__(self, cash, banker):
+    def __init__(self, cash, banker, is_A_share_market=True):
         """
         :param df_selected_stocks:
         :param df_daily:
@@ -48,6 +48,7 @@ class Broker:
         self.banker = banker
         self.total_cash = cash
         self.total_commission = 0
+        self.is_A_share_market = is_A_share_market  # 是否是A股市场
         # self.total_buy_cash = 0  # 总投入资金：就是我每次投入到股市的资金的累计
         # self.total_sell_cash = 0  # 总收益资金：就是我每次卖出后的获利资金
 
@@ -106,16 +107,16 @@ class Broker:
 
         price = series_fund.open # 要用开盘价来买入
 
-        # 计算可以买多少份基金，是扣除了手续费的金额 / 基金当天净值，下取整
+        # 计算可以买多少股基金，是扣除了手续费的金额 / 基金当天净值，下取整
         if trade.position is None:
             assert trade.amount is not None
             position = int(trade.amount * (1 - self.buy_commission_rate) / price)
         else:
             position = trade.position
 
-        # 如果卖出份数大于持仓，就只卖出所有持仓
+        # 如果卖出股数大于持仓，就只卖出所有持仓
         if position > self.positions[trade.code].position:
-            logger.warning("[%s] 卖出基金[%s]份数%d>持仓%d，等同于清仓",
+            logger.warning("[%s] 卖出基金[%s]股数%d>持仓%d，等同于清仓",
                            date2str(date),
                            trade.code,
                            position,
@@ -131,7 +132,7 @@ class Broker:
         self.trades.remove(trade)
         self.add_trade_history(trade, date, price)
 
-        logger.debug("[%s] [%s]以[%.2f]卖出[%.2f份/%.2f元],佣金[%.2f]",
+        logger.debug("[%s] [%s]以[%.2f]卖出[%.2f股/%.2f元],佣金[%.2f]",
                      date2str(date),
                      trade.code,
                      price,
@@ -162,7 +163,7 @@ class Broker:
             # logger.debug("交易日期")
             return False
 
-        # 先获得这笔交易对应的数据
+        # 先获得这笔交易对应的数据，也就是目标日的价格
         try:
             # 使用try/exception + 索引loc是为了提速，直接用列，或者防止KeyError的intersection，都非常慢， 60ms vs 3ms，20倍关系
             # 另外，date列是否是str还是date/int对速度影响不大
@@ -175,47 +176,59 @@ class Broker:
 
         # assert len(df_stock) == 1, f"根据{date}和{trade.code}筛选出多于1行的数据：{len(df_stock)}行"
 
-        # 计算可以买多少份基金，是扣除了手续费的金额 / 基金当天净值，下取整
-        if trade.position is None:
-            assert trade.amount is not None
-            # 按照开盘价来买卖
-            position = int(trade.amount * (1 - self.sell_commission_rate) / series_fund.open)
-        else:
+        """
+        # 先按照传入的事trade.amount 还是 trade.position，来算一个目标position出来
+        """
+        
+        # 如果传入了trade.position
+        if trade.position is not None:
             position = trade.position
-
-        # 计算要购买的价值（市值）
-        price = series_fund.close
+        # 那么，就是传入了trade.amount
+        else:
+            # 如果是A股市场，要整数手
+            if self.is_A_share_market:
+                position = calc_size(trade.amount, series_fund.open, self.buy_commission_rate)
+            else:
+                position = int(trade.amount * (1 - self.buy_commission_rate) / series_fund.open)
+        price = series_fund.open
         buy_value = position * price
         commission = self.buy_commission_rate * buy_value  # 还要算一下佣金，因为上面下取整了
+        total_expense = buy_value + commission
 
-        # 现金不够这次交易了，又不能跟银行借钱，那就能买多少买多少
-        if buy_value + commission > self.total_cash and not self.banker:
-                original_buy = buy_value + commission
-                available_money = self.total_cash / (self.buy_commission_rate + 1)
+        """
+        # 然后，看现金够不够，如果不够，看能不能借入，如果不能借入，就重新调整买入仓位（使用剩余的全部现金）
+        """
 
-                position = available_money / price
-                position = math.floor(position)
-
-                buy_value = position * price
-                commission = self.buy_commission_rate * buy_value  # 还要算一下佣金，因为上面下取整了
-                logger.warning("[%s]购买基金[%s]，购买金额%.1f>现金%.2f，调整购买金额为%.1f,佣金%.1f,剩余现金%.1f",
+        # 如果是缺钱了就自动借入（银转证）的模式：
+        if self.banker:
+            # 计算实际需要的钱数，不够，就向银行借入
+            if total_expense > self.total_cash:
+                self.banker.credit(total_expense - self.total_cash)
+                logger.warning("[%s] 购买基金[%s]金额不足，从银行借%.2f元",
                                date2str(today),
                                trade.code,
-                               original_buy,
+                               total_expense - self.total_cash)
+
+        # 如果不提供从银行（银转证）随意转入的话，也就是，投资金额是完全固定死了，就需要重新计算买入仓位position
+        else:
+            if total_expense > self.total_cash:
+                # 如果是A股市场，要整数手
+                if self.is_A_share_market:
+                    position = calc_size(self.total_cash, series_fund.open, self.buy_commission_rate)
+                else:
+                    position = int(self.total_cash * (1 - self.buy_commission_rate) / series_fund.open)
+                buy_value = position * series_fund.open
+                commission = self.buy_commission_rate * buy_value  # 还要算一下佣金，因为上面下取整了
+                logger.warning("[%s] 购买[%s]，准备购买金额%.1f>现金%.2f，调整购买金额为%.1f,佣金%.1f,剩余现金%.1f",
+                               date2str(today),
+                               trade.code,
+                               total_expense,
                                self.total_cash,
                                buy_value,
                                commission,
                                self.total_cash - buy_value - commission)
 
-        if self.banker and buy_value + commission > self.total_cash:
-                self.banker.credit(buy_value + commission - self.total_cash)
-                logger.warning("[%s] 购买基金[%s]金额不足，从银行借%.2f元",
-                               date2str(today),
-                               trade.code,
-                               buy_value + commission - self.total_cash)
-
-
-        # 买不到任何一个整数份数，就退出
+        # 买不到任何一个整数股数，就退出
         if position == 0:
             logger.warning("资金分配失败：从总现金[%.2f]中分配给基金[%s]（价格%.2f）失败",
                            self.total_cash, trade.code, series_fund.close)
@@ -223,6 +236,9 @@ class Broker:
             self.trades.remove(trade)
             return False
 
+        """
+        后续处理
+        """
 
         # 记录累计佣金
         self.total_commission += commission
@@ -237,7 +253,7 @@ class Broker:
         else:
             self.positions[trade.code] = Position(trade.code, position, price, today)
 
-        logger.debug("[%s] 以[%.2f]价格买入[%s] %d份/%.2f元,佣金[%.2f],总持仓:%.0f份",
+        logger.debug("[%s] 以[%.2f]价格买入[%s] %d股/%.2f元,佣金[%.2f],总持仓:%.0f股",
                      date2str(today),
                      price,
                      trade.code,
@@ -247,7 +263,7 @@ class Broker:
                      self.positions[trade.code].position)
 
         # 现金流出：购买的价值 + 佣金，计算买入需要的现金的时候，要加上手续费
-        self.cashout(today,buy_value + commission)
+        self.cashout(today,total_expense)
 
         return True
 
@@ -305,7 +321,7 @@ class Broker:
         """
         创建买入单，下个交易日成交
         amount：购买金额
-        postion：购买份数
+        postion：购买股数
         这俩二选一
         """
         if amount and amount > self.total_cash and self.banker is None: # 如果不能从银行借钱
@@ -313,13 +329,13 @@ class Broker:
                            self.total_cash)
             return False
         self.trades.append(Trade(code, date, amount, position, 'buy'))
-        logger.debug("创建目标交易日[%s]买单，买入基金[%s]%r元/%r份", date2str(date), code, amount, position)
+        logger.debug("创建目标交易日[%s]买单，买入[%s]，%r元 / %r股", date2str(date), code, amount, position)
         return True
 
     def sell(self, code, date, amount=None, position=None):
         """创建卖出单
         amount：购买金额
-        postion：购买份数
+        postion：购买股数
         这俩二选一
         """
         if self.positions.get(code, None) is None:
@@ -340,7 +356,7 @@ class Broker:
             position = self.positions[code].position
 
         self.trades.append(Trade(code, date, amount, position, 'sell'))
-        logger.debug("创建目标交易日[%s]卖单，卖出持仓基金 [%s] %r元/%r份",
+        logger.debug("创建目标交易日[%s]卖单，卖出持仓基金 [%s] %r元/%r股",
                      date2str(date),
                      code,
                      amount,
@@ -375,7 +391,7 @@ class Broker:
 
         # print("total_position_value========>",total_position_value)
 
-        # 按照持仓份数，来计算平均成本
+        # 按照持仓股数，来计算平均成本
         total_position = sum(total_positions)
         if total_position == 0:
             cost = np.nan
@@ -460,6 +476,7 @@ class Broker:
         day_date，今天的日期
         :return:
         """
+        result = len(self.trades) > 0
         original_position_size = len(self.positions)
 
         # 先执行买入和卖出操作
@@ -485,3 +502,5 @@ class Broker:
             self.update_market_value(day_date, code)
 
         self.update_total_market_value(day_date)
+
+        return result # 如果有交易，才返回True

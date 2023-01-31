@@ -27,6 +27,7 @@ class KelterStrategy(Strategy):
     def next(self, today, trade_date):
         super().next(today, trade_date)
 
+        b_flag = False
         for code, df in self.df_dict.items():
 
             s = self.get_value(df, today)
@@ -37,8 +38,12 @@ class KelterStrategy(Strategy):
                 if s.close > s.upper:
                     if self.broker.buy(code, trade_date, amount=self.broker.total_cash):
                         logger.debug('[%r] 挂买单，股票[%s]/目标日期[%s]', date2str(today), code, date2str(trade_date))
+                        b_flag = True
             # 如果持仓
             else:
                 if s.close < s.lower:
                     if self.broker.sell_out(code, trade_date):
                         logger.debug('[%r] 挂卖单，股票[%s]/目标日期[%s]', date2str(today), code, date2str(trade_date))
+                        b_flag = True
+
+        return b_flag

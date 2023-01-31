@@ -20,7 +20,7 @@ def main(start_date, end_date, code):
     cerebro.adddata(data, name=code)
 
     cerebro.broker.setcash(cash)
-    cerebro.broker.setcommission(commission=0.002)
+    cerebro.broker.setcommission(commission=0.001)# 买卖各千一，合计千二
     cerebro.broker.set_slippage_perc(0.000)  # 0%的滑点
     cerebro.addanalyzer(bt.analyzers.TradeAnalyzer, _name='trade')
     cerebro.addstrategy(KetlerStrategy)
@@ -58,6 +58,11 @@ def plot_stat(cerebro, stat, code, start_date, end_date):
 """
 python -m ketler.bt.main \
     -s 20200101 \
+    -e 20220501 \
+    -c 300347.SZ
+
+python -m ketler.bt.main \
+    -s 20191201 \
     -e 20220501 \
     -c 300347.SZ
 """
