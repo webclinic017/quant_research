@@ -5,6 +5,7 @@ import akshare as ak
 import pandas as pd
 import talib
 from backtrader.feeds import PandasData
+import tushare as ts
 
 from utils import utils
 
@@ -23,7 +24,7 @@ def load(name, func, **kwargs):
     logger.info(f"加载{name}数据，函数:{func.__name__}，参数:{kwargs}")
     if not os.path.exists("./data"): os.mkdir("./data")
 
-    values = [v for k, v in kwargs.items()]
+    values = [str(v) for k, v in kwargs.items()]
     values = "_".join(values)
     file_name = f"data/{name}_{values}.csv"
 
@@ -65,7 +66,7 @@ def load_stocks(codes, ma_days):
 
 def load_stock(code):
     """加载股票数据"""
-    code = code[:6] # 靠，代码需要去掉市场表示，如：300347.SZ=>300347
+    code = code[:6]  # 靠，代码需要去掉市场表示，如：300347.SZ=>300347
     # 调通用加载函数，加载数据
     df = load(name=code,
               func=ak.stock_zh_a_hist,
@@ -100,6 +101,63 @@ def load_fund(code):
     df_fund = df_fund.set_index('date')
     df_fund['code'] = code  # 都追加一个code字段
     return df_fund
+
+
+def load_hsgt_top10():
+    df = load('hsgt_top10', __load_hsgt_top10)
+    df['date'] = pd.to_datetime(df['date'], format='%Y-%m-%d')
+    df = df.set_index('date')
+
+    return df
+
+
+def __load_hsgt_top10():
+    """
+    https://tushare.pro/document/2?doc_id=48
+    :param pro:
+    :return:
+    """
+    pro = ts.pro_api(utils.load_config()['token'])
+    dfs = []
+    # 看了数据，是从2014.11才开始有的
+    for year in range(2014, 2023):
+        start = f'{year}0101'
+        end = f'{year}1231'
+        df = pro.hsgt_top10(start_date=start, end_date=end, market_type='1')
+        dfs.append(df)
+        df = pro.hsgt_top10(start_date=start, end_date=end, market_type='2')
+        dfs.append(df)
+    df = pd.concat(dfs)
+    df.rename(columns={'trade_date': 'date', 'trade_code': 'code'}, inplace=True)
+    return df
+
+
+def load_moneyflow_hsgt():
+    df = load('moneyflow_hsgt', __load_moneyflow_hsgt)
+    df['date'] = pd.to_datetime(df['date'], format='%Y-%m-%d')
+    df = df.set_index('date')
+    return df
+
+
+def __load_moneyflow_hsgt():
+    """
+    https://tushare.pro/document/2?doc_id=47
+    :param pro:
+    :return:
+    """
+    pro = ts.pro_api(utils.load_config()['token'])
+
+    # 看了数据，是从2014.11才开始有的
+    dfs = []
+    for year in range(2014, 2023):
+        start = f'{year}0101'
+        end = f'{year}1231'
+        df = pro.moneyflow_hsgt(start_date=start, end_date=end)
+    dfs.append(df)
+    df = pd.concat(dfs)
+    df.rename(columns={'trade_date': 'date'}, inplace=True)
+
+    return df
 
 
 def bt_wrapper(df, start_date, end_date):

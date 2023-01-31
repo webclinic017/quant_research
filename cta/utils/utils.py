@@ -10,16 +10,29 @@ import time
 import functools
 
 import dask
+import yaml
 from backtrader_plotting.schemes import Tradimo
 from dask import compute, delayed
 from dateutil.relativedelta import relativedelta
 
 logger = logging.getLogger(__name__)
 
+
 class AttributeDict(dict):
     __getattr__ = dict.__getitem__
     __setattr__ = dict.__setitem__
     __delattr__ = dict.__delitem__
+
+
+def load_config(path='./conf/config.yml'):
+    if not os.path.exists(path):
+        raise ValueError("配置文件[conf/config.yml]不存在!")
+    f = open(path, 'r', encoding='utf-8')
+    result = f.read()
+    # 转换成字典读出来
+    data = yaml.load(result, Loader=yaml.FullLoader)
+    logger.info("读取配置文件:%s", path)
+    return data
 
 
 def get_value(df, key):
@@ -141,7 +154,6 @@ def init_logger(file=False, simple=False, log_level=logging.DEBUG):
             if type(t) == cls: return True
         return False
 
-
     # 加入控制台
     if not is_any_handler(root_logger.handlers, logging.StreamHandler):
         stream_handler = logging.StreamHandler()
@@ -161,13 +173,15 @@ def init_logger(file=False, simple=False, log_level=logging.DEBUG):
         handler.setLevel(level=log_level)
         handler.setFormatter(formatter)
 
-def serialize(obj,file_path):
+
+def serialize(obj, file_path):
     # pickle是二进制的，不喜欢，改成json序列化了
     # f = open(file_path, 'wb')
     # pickle.dump(obj, f)
     # f.close()
     with open(file_path, "w") as f:
         json.dump(obj, f, indent=2)
+
 
 def unserialize(file_path):
     # f = open(file_path, 'rb')
@@ -176,6 +190,7 @@ def unserialize(file_path):
     with open(file_path, 'r') as f:
         obj = json.load(f)
     return obj
+
 
 def __calc_OHLC_in_group(df_in_group):
     """
@@ -234,7 +249,7 @@ def parallel_run(core_num, iterable, func, *args, **kwargs):
         64
         # 偏函数partial：https://www.liaoxuefeng.com/wiki/1016959663602400/1017454145929440
         """
-        logger.debug("使用%d个并行，运行函数%s,参数：%r;%r",core_num,func.__name__,args,kwargs)
+        logger.debug("使用%d个并行，运行函数%s,参数：%r;%r", core_num, func.__name__, args, kwargs)
         func_partial = functools.partial(func, *args, **kwargs)
 
         # dask：https://juejin.cn/post/7083079485230153764
@@ -244,9 +259,6 @@ def parallel_run(core_num, iterable, func, *args, **kwargs):
         client = Client(asynchronous=True, n_workers=4, threads_per_worker=2)
 
         return result
-
-
-
 
 
 class AStockPlotScheme(Tradimo):
@@ -264,6 +276,7 @@ class AStockPlotScheme(Tradimo):
         self.bardown_outline = self.bardown
         self.volup = self.barup
         self.voldown = self.bardown
+
 
 def calc_size(cash, price, commission_rate):
     """

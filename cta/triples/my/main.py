@@ -1,5 +1,6 @@
 import argparse
 import logging
+import tushare as ts
 
 from pandas import DataFrame
 from tabulate import tabulate
@@ -11,7 +12,7 @@ from backtest.stat import calculate_metrics
 from ketler.my.ketler_strategy import KelterStrategy
 from ketler.my.plot import plot
 from utils import utils
-from utils.data_loader import load_index, load_stocks
+from utils.data_loader import load_index, load_stocks, load_hsgt_top10, load_moneyflow_hsgt
 from utils.utils import str2date, date2str
 
 logger = logging.getLogger(__name__)
@@ -95,7 +96,12 @@ def main(args):
     df_baseline = load_index(index_code=args.baseline)
 
     # 加载基金数据，标准化列名，close是为了和标准的指数的close看齐
-    df_dict = load_stocks(codes=args.code.split(","), ma_days=240)
+    df_top10 = load_hsgt_top10()
+    df_moneyflow = load_moneyflow_hsgt()
+
+    print(df_top10)
+    print(df_moneyflow)
+    exit()
 
     df_portfolio, broker, banker = backtest(df_baseline, df_dict, args)
 
@@ -130,7 +136,7 @@ def main(args):
 
 
 """
-python -m ketler.my.main \
+python -m triples.my.main \
 -b sh000001 \
 -c 300347.SZ \
 -s 20200101 \
