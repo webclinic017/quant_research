@@ -179,7 +179,7 @@ class Broker:
         """
         # 先按照传入的事trade.amount 还是 trade.position，来算一个目标position出来
         """
-        
+
         # 如果传入了trade.position
         if trade.position is not None:
             position = trade.position

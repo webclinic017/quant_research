@@ -12,6 +12,14 @@ logger = logging.getLogger(__name__)
 
 
 def load(name, func, **kwargs):
+    """
+    通用加载函数：如果有csv文件就加载它，没有的话就去调用akshare函数，获得数据后保存到data目录
+    :param name: 数据的名称，是个字符串标识而已
+    :param func: 真正需要调用的akshare的函数
+    :param kwargs: akshare函数所需要的动态参数
+    :return:
+    """
+
     logger.info(f"加载{name}数据，函数:{func.__name__}，参数:{kwargs}")
     if not os.path.exists("./data"): os.mkdir("./data")
 
@@ -56,12 +64,15 @@ def load_stocks(codes, ma_days):
 
 
 def load_stock(code):
+    """加载股票数据"""
     code = code[:6] # 靠，代码需要去掉市场表示，如：300347.SZ=>300347
+    # 调通用加载函数，加载数据
     df = load(name=code,
               func=ak.stock_zh_a_hist,
               symbol=code,
               period="daily",
               adjust="qfq")
+    # 修改列名（为了兼容backtrader的要求的列名），以及转日期列为日期格式，并，设置日期列为索引列
     df['日期'] = pd.to_datetime(df['日期'], format='%Y-%m-%d')
     df.rename(columns={'日期': 'date',
                        '开盘': 'open',

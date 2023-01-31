@@ -6,7 +6,6 @@ import backtrader as bt
 from bt.AmarketSizer import AMarketSize
 from ketler.bt.ketler_indicator import Ketler
 from utils import utils
-from utils.utils import calc_size
 
 logger = logging.getLogger(__name__)
 
@@ -14,40 +13,33 @@ logger = logging.getLogger(__name__)
 class KetlerStrategy(bt.Strategy):
 
     def __init__(self):
+        # 凯特勒指标
         self.ketler = Ketler(self.data, plot=True)
+        # 自定义的一个sizer，用于应对A股整手的限制
         self.sizer = AMarketSize()
 
     def _date(self):
+        """用于显示今日日期用"""
         stock_day_date = self.datas[0].datetime.datetime(0)
         return utils.date2str(stock_day_date)
 
     def next(self):
+        """核心方法，用于书写策略"""
 
-        s_date = utils.date2str(self.data.datetime.datetime(0))
-
-        # 如果空仓,收盘价突破上轨,尝试买入
+        # 如果空仓,收盘价突破凯特勒上轨,尝试买入
         if self.getposition(self.data).size == 0:
             if self.data.close[0] > self.ketler.upper[0]:
-                # 防止涨停买入，把限价做到涨停价，再高就不买了，防止买入涨停
-                limit_price = self.data.close[0] * 1.098
-                # 计算当前可以买多少手，用的是今天的价格，来估计的，可能会有问题，因为真正成交是第二天的开盘价
-                # 所以用limit_price，即把价格抬高一些，保证钱够
-                commission = self.broker.getcommissioninfo(self.data).p.commission
-                # size = calc_size(self.broker.get_cash(), limit_price, commission)
-                # if size <= 0:
-                #     logger.warning("[%s] 头寸分配失败，无法买入", s_date)
-                #     return
-                # 挂一个限价在1.098的限价单，超过就不买了，有效期1天
+
+                # 买入市价单，有效期1天
                 self.buy(data=self.data,
                          exectype=bt.Order.Market,
                          valid=datetime.datetime.now() + datetime.timedelta(days=1))
 
-                logger.debug('[%r] 尝试买入: 股票[%s]，今日收盘[%.2f]，明日限价[%.2f]',
-                             s_date,
+                logger.debug('[%r] 尝试买入: 股票[%s]，今日收盘[%.2f]',
+                             self._date(),
                              self.data._name,
-                             self.data.close[0],
-                             limit_price)
-        # 如果持仓
+                             self.data.close[0])
+        # 如果持仓，且收盘价跌破凯特勒下轨，就卖出
         else:
             if self.data.close[0] < self.ketler.lower[0]:
                 logger.debug('[%r] 尝试卖出: 股票[%s]',
@@ -56,6 +48,7 @@ class KetlerStrategy(bt.Strategy):
                 self.order = self.close()
 
     def notify_order(self, order):
+        """用于监控订单的状态变化，是一个回调函数"""
 
         # 如果order为submitted/accepted,返回空
         if order.status in [order.Submitted, order.Accepted]:
@@ -111,6 +104,8 @@ class KetlerStrategy(bt.Strategy):
 
     # 这个是一只股票的一个完整交易的生命周期：开仓，持有，卖出
     def notify_trade(self, trade):
+        """用于跟踪一个完整交易"""
+
         if trade.isclosed:
             open_date = utils.date2str(bt.num2date(trade.dtopen))
             close_date = utils.date2str(bt.num2date(trade.dtclose))

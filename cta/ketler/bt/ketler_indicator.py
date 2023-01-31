@@ -4,13 +4,14 @@ import backtrader as bt
 class Ketler(bt.Indicator):
     """
     https://www.bilibili.com/video/BV1vT4y1M7B3
+    这个是凯特勒指标的实现，是遵从了backtrader的指标实现
     """
 
     lines = ("expo", "atr", "upper", "lower")
     params = dict(ema=20, atr=17)
     plotinfo = dict(subplot=False)
     plotlines = dict(
-        upper=dict(ls="--"),
+        upper=dict(ls="--"), # 显示的时候，是一个虚线
         lower=dict(_samecolor=True)
     )
 
