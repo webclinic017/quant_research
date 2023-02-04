@@ -63,8 +63,17 @@ class Broker:
         self.df_trade_history = DataFrame()
         # 总持仓的每日市值
         self.df_total_market_value = DataFrame()
-        # 各个基金的每日市值
+        # 各个基金/股票的每日市值
         self.fund_market_dict = {}
+
+    def add_data(self, code, df):
+        """
+        用于向broker动态追加股票、基金数据
+        :param code:
+        :param df:
+        :return:
+        """
+        self.data_dict[code] = df
 
     def set_buy_commission_rate(self, commission_rate):
         self.buy_commission_rate = commission_rate
@@ -72,13 +81,13 @@ class Broker:
     def set_sell_commission_rate(self, commission_rate):
         self.sell_commission_rate = commission_rate
 
-    def set_data(self, fund_dict: dict, df_baseline:dict):
-        # 基金数据，是一个dict，key是基金代码，value是dataframe
-        self.fund_dict = fund_dict
+    def set_data(self, data_dict: dict, df_baseline:dict):
+        # 基金/股票数据，是一个dict，key是基金/股票代码，value是dataframe
+        self.data_dict = data_dict
         # 基准指数
         self.df_baseline = df_baseline
 
-        date = list(self.fund_dict.values())[0].iloc[0]._name
+        date = list(self.data_dict.values())[0].iloc[0]._name
         self.df_total_market_value = self.df_total_market_value.append({'date': date,
                                                                         'total_value': self.total_cash,  # 总市值
                                                                         'total_position_value': 0,
@@ -99,7 +108,7 @@ class Broker:
             # 使用try/exception + 索引loc是为了提速，直接用列，或者防止KeyError的intersection，都非常慢， 60ms vs 3ms，20倍关系
             # 另外，date列是否是str还是date/int对速度影响不大
             # df_stock = self.df_daily.loc[self.df_daily.index.intersection([(date, trade.code)])]
-            df = self.fund_dict[trade.code[:6]]
+            df = self.data_dict[trade.code]
             series_fund = df.loc[trade.target_date]
         except KeyError:
             logger.warning("[%s] 在 [%s]日 没有数据，无法买入，只能延后", trade.code, date2str(date))
@@ -107,7 +116,7 @@ class Broker:
 
         price = series_fund.open # 要用开盘价来买入
 
-        # 计算可以买多少股基金，是扣除了手续费的金额 / 基金当天净值，下取整
+        # 计算可以买多少股基金/股票，是扣除了手续费的金额 / 基金/股票当天净值，下取整
         if trade.position is None:
             assert trade.amount is not None
             position = int(trade.amount * (1 - self.buy_commission_rate) / price)
@@ -116,7 +125,7 @@ class Broker:
 
         # 如果卖出股数大于持仓，就只卖出所有持仓
         if position > self.positions[trade.code].position:
-            logger.warning("[%s] 卖出基金[%s]股数%d>持仓%d，等同于清仓",
+            logger.warning("[%s] 卖出基金/股票[%s]股数%d>持仓%d，等同于清仓",
                            date2str(date),
                            trade.code,
                            position,
@@ -146,7 +155,7 @@ class Broker:
         # 创建，或者，更新持仓
         self.positions[trade.code].update(date, -position, price)
         if self.positions[trade.code] == 0:
-            logger.info("基金[%s]仓位为0，清仓", trade.code)
+            logger.info("基金/股票[%s]仓位为0，清仓", trade.code)
             self.positions.pop(trade.ts_code, None)  # None可以防止pop异常
 
         return True
@@ -168,10 +177,10 @@ class Broker:
             # 使用try/exception + 索引loc是为了提速，直接用列，或者防止KeyError的intersection，都非常慢， 60ms vs 3ms，20倍关系
             # 另外，date列是否是str还是date/int对速度影响不大
             # df_stock = self.df_daily.loc[self.df_daily.index.intersection([(date, trade.code)])]
-            df = self.fund_dict[trade.code]
+            df = self.data_dict[trade.code]
             series_fund = df.loc[trade.target_date]
         except KeyError:
-            logger.warning("基金[%s]没有在[%s]无数据，无法买入，只能延后", trade.code, today)
+            logger.warning("[%s]在[%s]日无数据，无法买入", trade.code, date2str(today))
             return False
 
         # assert len(df_stock) == 1, f"根据{date}和{trade.code}筛选出多于1行的数据：{len(df_stock)}行"
@@ -204,7 +213,7 @@ class Broker:
             # 计算实际需要的钱数，不够，就向银行借入
             if total_expense > self.total_cash:
                 self.banker.credit(total_expense - self.total_cash)
-                logger.warning("[%s] 购买基金[%s]金额不足，从银行借%.2f元",
+                logger.warning("[%s] 购买基金/股票[%s]金额不足，从银行借%.2f元",
                                date2str(today),
                                trade.code,
                                total_expense - self.total_cash)
@@ -230,7 +239,7 @@ class Broker:
 
         # 买不到任何一个整数股数，就退出
         if position == 0:
-            logger.warning("资金分配失败：从总现金[%.2f]中分配给基金[%s]（价格%.2f）失败",
+            logger.warning("资金分配失败：从总现金[%.2f]中分配给基金/股票[%s]（价格%.2f）失败",
                            self.total_cash, trade.code, series_fund.close)
             # 这笔交易就放弃了
             self.trades.remove(trade)
@@ -356,7 +365,7 @@ class Broker:
             position = self.positions[code].position
 
         self.trades.append(Trade(code, date, amount, position, 'sell'))
-        logger.debug("创建目标交易日[%s]卖单，卖出持仓基金 [%s] %r元/%r股",
+        logger.debug("创建目标交易日[%s]卖单，卖出持仓基金/股票 [%s] %r元/%r股",
                      date2str(date),
                      code,
                      amount,
@@ -374,19 +383,19 @@ class Broker:
         列：[日子，总市值，现金，市值]
         市值 = sum(position_i * price_i)
         总成本：
-        每个基金成本 * 仓位权重
+        每个基金/股票成本 * 仓位权重
         """
         total_position_value = 0
         total_positions = []
         costs = []
         # 挨个持仓合计
         for fund_code, df_market_value in self.fund_market_dict.items():
-            # 取最后一条，也就是最新的这只基金的各种信息
+            # 取最后一条，也就是最新的这只基金/股票的各种信息
             # 这个信息已经在前面的update_market_value被更新，就是当天的、最新的
             total_position_value += df_market_value.iloc[-1].position_value.item()
-            # 记录每只基金的最后总仓位
+            # 记录每只基金/股票的最后总仓位
             total_positions.append(df_market_value.iloc[-1].position.item())
-            # 记录每只基金的最后成本
+            # 记录每只基金/股票的最后成本
             costs.append(df_market_value.iloc[-1].cost.item())
 
         # print("total_position_value========>",total_position_value)
@@ -410,28 +419,28 @@ class Broker:
 
     def update_market_value(self, date, fund_code):
         """
-        更新你持有的基金的每日市值
+        更新你持有的基金/股票的每日市值
         列：[日子，仓位，市值，成本]
         """
         total_position_value = 0
         total_cost = 0
 
-        # 找到这只基金的当天的价格，然后乘以仓位，计算这笔成交的市值
-        df_fund_daily = self.fund_dict[fund_code]
+        # 找到这只基金/股票的当天的价格，然后乘以仓位，计算这笔成交的市值
+        df_fund_daily = self.data_dict[fund_code]
 
-        # 找到基金每日持仓市值，准备更新他
+        # 找到基金/股票每日持仓市值，准备更新他
         df_fund_market_value = self.fund_market_dict.get(fund_code, None)
         if df_fund_market_value is None:
             df_fund_market_value = DataFrame()
 
-        # 获得此基金的当日价格
+        # 获得此基金/股票的当日价格
         try:
             series_fund = df_fund_daily.loc[date]
             price = series_fund.close
-            # logger.debug(" %s 日基金 %s 的数据，市值%.1f = 价格%.1f * 持仓%.1f ",
+            # logger.debug(" %s 日基金/股票 %s 的数据，市值%.1f = 价格%.1f * 持仓%.1f ",
             #              date, code, market_value, series_fund.net_value, position.position)
         except KeyError:
-            logger.warning(" %s 日没有基金 %s 的数据，使用其最后的市值未最新市值", date2str(date), fund_code)
+            logger.warning(" %s 日没有基金/股票 %s 的数据，使用其最后的市值未最新市值", date2str(date), fund_code)
             price = 0
 
         # 当前仓位（已经更新了今日的了）
@@ -458,7 +467,7 @@ class Broker:
         return self.df_total_market_value.iloc[-1].total_value
 
     def get_position_value(self, code):
-        """仅查看某一直基金的持仓价值"""
+        """仅查看某一直基金/股票的持仓价值"""
         df_market_value = self.fund_market_dict.get(code, None)
         if df_market_value is None: return None
         return df_market_value.iloc[-1].position_value
@@ -492,10 +501,11 @@ class Broker:
                 self.real_buy(trade, day_date)
 
         if original_position_size != len(self.positions):
-            logger.debug("%s 日后，仓位变化，从%d=>%d 只",
+            logger.debug("%s 日后，仓位变化，从%d=>%d 只:%s",
                          date2str(day_date),
                          original_position_size,
-                         len(self.positions))
+                         len(self.positions),
+                         ",".join(self.positions.keys()))
 
         for code, _ in self.positions.items():
             # 更新市值，每天都要把当天的市值记录下来

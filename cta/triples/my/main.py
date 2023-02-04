@@ -5,10 +5,9 @@ from pandas import DataFrame
 from tabulate import tabulate
 
 from backtest.backtester import BackTester
-from backtest.banker import Banker
 from backtest.broker import Broker
 from backtest.stat import calculate_metrics
-from ketler.my.plot import plot
+from triples.my.plot import plot
 from triples.my.triples_strategy import TripleStrategy
 from utils import utils
 from utils.data_loader import load_index, load_hsgt_top10, load_moneyflow_hsgt
@@ -22,8 +21,9 @@ logger = logging.getLogger(__name__)
 
 
 def backtest(df_baseline: DataFrame, df_dict, params):
-    banker = Banker()
-    broker = Broker(0, banker)
+    # banker = Banker()
+    banker = None
+    broker = Broker(params.amount, banker)
     broker.set_buy_commission_rate(0.0001)  # 参考华宝证券：ETF手续费万1，单笔最低0.2元
     broker.set_sell_commission_rate(0)
     backtester = BackTester(broker, params.start_date, params.end_date, buy_day='tomorrow')
@@ -43,25 +43,28 @@ def backtest(df_baseline: DataFrame, df_dict, params):
 def print_trade_details(start_date, end_date, amount, df_baseline, df_dict, df_portfolio, broker, banker):
     df_stat = DataFrame()
     # 如果是多只基金一起投资，挨个统计他们各自的情况
-    for code, df_fund in df_dict.items():
-        df_fund = df_fund[(df_fund.index > start_date) & (df_fund.index < end_date)]
+    for code, df_data in df_dict.items():
+        if code in ['moneyflow','top10','baseline']: continue
+
+        df_data = df_data[(df_data.index > start_date) & (df_data.index < end_date)]
         df_portfolio = df_portfolio[(df_portfolio.index > start_date) & (df_portfolio.index < end_date)]
         if len(broker.df_trade_history) == 0:
             logger.warning("基金[%s] 在%s~%s未发生任何一笔交易", code, date2str(start_date), date2str(end_date))
             continue
-        if len(df_fund) == 0:
+        if len(df_data) == 0:
             logger.warning("基金[%s] 在%s~%s的数据为空", code, date2str(start_date), date2str(end_date))
             continue
         # 统计这只基金的收益情况
-        stat = calculate_metrics(df_portfolio, df_baseline, df_fund, broker, amount, start_date, end_date)
+        stat = calculate_metrics(df_portfolio, df_baseline, df_data, broker, amount, start_date, end_date)
         stat["借钱总额"] = banker.debt if banker else 'N/A'
         stat["借钱次数"] = banker.debt_num if banker else 'N/A'
 
-        # 打印，暂时注释掉
-        for k, v in stat.items():
-            logger.info("{:>20s} : {}".format(k, v))
-        logger.info("=" * 80)
-        df_stat = df_stat.append(stat, ignore_index=True)
+        if stat['买次']>0:
+            # 打印，暂时注释掉
+            for k, v in stat.items():
+                logger.info("{:>20s} : {}".format(k, v))
+            logger.info("=" * 80)
+            df_stat = df_stat.append(stat, ignore_index=True)
 
     if len(df_stat) == 0: return df_stat
 

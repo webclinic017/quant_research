@@ -35,7 +35,7 @@ def load(name, func, **kwargs):
         df.to_csv(file_name)
     else:
         logger.debug(f"加载缓存文件:{file_name}")
-        df = pd.read_csv(file_name)
+        df = pd.read_csv(file_name,dtype={'code':str}) # code列要转成str，没有这个列系统会自动忽略
     return df
 
 
@@ -67,7 +67,6 @@ def load_stocks(codes, ma_days):
 
 def load_stock(code):
     """加载股票数据"""
-    code = code[:6]  # 靠，代码需要去掉市场表示，如：300347.SZ=>300347
     # 调通用加载函数，加载数据
     df = load(name=code,
               func=ak.stock_zh_a_hist,
@@ -137,14 +136,18 @@ def __load_hsgt_top10():
         bar.update(i)
     bar.close()
     df = pd.concat(dfs)
+    df['code'] = df.code.str[:6] # 遵从简化原则，不保留市场代码：600601.SH => 600601
     df.rename(columns={'trade_date': 'date', 'trade_code': 'code'}, inplace=True)
     return df
 
 
 def load_moneyflow_hsgt():
     df = load('moneyflow_hsgt', __load_moneyflow_hsgt)
-    df['date'] = pd.to_datetime(df.date.apply(str), format='%Y-%m-%d')
-    df = df.set_index('date')
+    return set_date_index(df)
+
+def set_date_index(df,date_column='date'):
+    df[date_column] = pd.to_datetime(df.date.apply(str), format='%Y-%m-%d')
+    df = df.set_index(date_column)
     return df
 
 
