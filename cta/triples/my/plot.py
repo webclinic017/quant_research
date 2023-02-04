@@ -10,8 +10,27 @@ import mplfinance as mpf
 
 logger = logging.getLogger(__name__)
 
+mc = mpf.make_marketcolors(
+    up='red',
+    down='green',
+    edge='i',
+    wick='i',
+    volume='in',
+    inherit=True)
+style = mpf.make_mpf_style(
+    gridaxis='both',
+    gridstyle='-.',
+    y_on_right=False,
+    marketcolors=mc)
+kwargs = dict(
+    type='candle',
+    volume=False,
+    title='基金的走势',
+    ylabel='K线',
+    ylabel_lower='')  # ,figratio=(15, 10)
 
-def plot(start_date, end_date, broker, df_baseline, df_portfolio, fund_dict, df_stat):
+
+def plot(start_date, end_date, broker, df_baseline, df_portfolio, df_dict, df_stat, df_moneyflow_position):
     """
     画总图:
     - 总的投资收益图
@@ -24,9 +43,9 @@ def plot(start_date, end_date, broker, df_baseline, df_portfolio, fund_dict, df_
 
     plt.clf()
 
-    fig = plt.figure(figsize=(50, 10 + 6 * len(fund_dict)), dpi=(100))
+    fig = plt.figure(figsize=(60, 40))  # 8 + 5 * len(df_stat)))
     # fig.set_figheight()
-    row = 3 + len(fund_dict)
+    row = 4  # + len(df_dict)
     col = 1
     pos = 1
 
@@ -42,23 +61,54 @@ def plot(start_date, end_date, broker, df_baseline, df_portfolio, fund_dict, df_
     # 设置基准X轴
     ax_baseline = fig.add_subplot(row, col, pos)
     ax_baseline.grid()
-    ax_baseline.set_title(f"投资收益报告")
+    ax_baseline.set_title(f"基准指数K线、收益变动情况")
     ax_baseline.set_xlabel('日期')  # 设置x轴标题
     ax_baseline.xaxis.set_major_locator(mdates.MonthLocator(interval=1))
     ax_baseline.xaxis.set_major_formatter(mdates.DateFormatter('%Y/%m'))
     ax_baseline.xaxis.set_tick_params(rotation=45)
 
-    # 画基准
-    h_baseline, = ax_baseline.plot(df_baseline.index, df_baseline.close, 'r')
+    # 画基准,上证指数
+    # h_baseline, = ax_baseline.plot(df_baseline.index, df_baseline.close, 'r')
+    mpf.plot(df_baseline, ax=ax_baseline, style=style, type='candle', show_nontrading=True)
     ax_baseline.set_ylabel(f'基准{df_baseline.iloc[0].code}', color='r')  # 设置Y轴标题
     ax_portfolio = ax_baseline.twinx()  # 返回共享x轴的第3个轴
     h_portfolio, = ax_portfolio.plot(df_portfolio.index, df_portfolio.total_value, 'c')
     ax_portfolio.set_ylabel(f'组合投资的总市值', color='r')  # 设置Y轴标题
-    plt.legend(handles=[h_portfolio, h_baseline],
-               labels=['组合投资的总市值', f'基准{df_baseline.iloc[0].code}'],
+    #
+    df_moneyflow = df_dict['moneyflow']
+    ax_moneyflow = ax_baseline.twinx()  # 返回共享x轴的第3个轴
+    h_moneyflow, = ax_moneyflow.plot(df_moneyflow.index, df_moneyflow.net_amount, 'r')
+    # 画开仓信号
+    df_open = df_moneyflow_position[df_moneyflow_position.position == 'open']
+    ax_moneyflow.scatter(df_open.date, df_open.net_amount, marker='^', c='r', s=40)
+    # 画清仓信号
+    df_close = df_moneyflow_position[df_moneyflow_position.position == 'close']
+    ax_moneyflow.scatter(df_close.date, df_close.net_amount, marker='v', c='g', s=40)
+    # 画出上下规定的边界区域
+    ax_moneyflow.fill_between(df_moneyflow.index, df_moneyflow.upper, df_moneyflow.lower, alpha=0.2)
+    #
+    plt.legend(handles=[h_portfolio],
+               labels=['组合投资的总市值'],
                loc='best')
 
     ################ 画第二张图 ################
+    pos += 1
+    # 画出价格来
+    ax_moneyflow = fig.add_subplot(row, col, pos)
+    df_moneyflow = df_dict['moneyflow']
+    # df_moneyflow = df_moneyflow.sort_index()
+    h_moneyflow, = ax_moneyflow.plot(df_moneyflow.index, df_moneyflow.net_amount, 'r')
+    # 画出上下规定的边界区域
+    ax_moneyflow.fill_between(df_moneyflow.index, df_moneyflow.upper, df_moneyflow.lower, alpha=0.2)
+    # ax_moneyflow.grid()
+    ax_moneyflow.set_title(f"北上资金情况")
+    ax_moneyflow.set_xlabel('日期')  # 设置x轴标题
+    ax_moneyflow.xaxis.set_major_locator(mdates.MonthLocator(interval=1))
+    ax_moneyflow.xaxis.set_major_formatter(mdates.DateFormatter('%Y/%m'))
+    ax_moneyflow.xaxis.set_tick_params(rotation=45)
+    plt.legend(handles=[h_moneyflow], labels=['北上资金净值'], loc='best')
+
+    ################ 画第三张图 ################
     # 画：'总市值', '持仓', '现金'
 
     pos += 1
@@ -79,7 +129,7 @@ def plot(start_date, end_date, broker, df_baseline, df_portfolio, fund_dict, df_
                loc='best')
 
     # 画出每只基金的持仓情况
-    for code, df_data in fund_dict.items():
+    for code, df_data in df_dict.items():
 
         # 只过滤回测期间的数据
         df_data = df_data[(df_data.index > start_date) & (df_data.index < end_date)]
@@ -99,21 +149,21 @@ def plot(start_date, end_date, broker, df_baseline, df_portfolio, fund_dict, df_
             (broker.df_trade_history.code == code) & (broker.df_trade_history.action == 'sell')]
         df_data_market = broker.fund_market_dict.get(code, None)
         if df_data_market is None:
-            logger.warning("基金[%s] 在%s~%s未发生交易市值变化", code, date2str(start_date), date2str(end_date))
+            # logger.warning("基金[%s] 在%s~%s未发生交易市值变化", code, date2str(start_date), date2str(end_date))
             continue
 
         pos += 1
 
         # 画一直基金的信息
-        plot_fund(fig, row, col, pos, df_data, df_data_market, df_buy_trades, df_sell_trades)
+        # plot_stock(fig, row, col, pos, df_data, df_data_market, df_buy_trades, df_sell_trades)
 
     # 保存图片
     fig.tight_layout()
-    codes = "_".join([k for k, v in fund_dict.items()])[:100]
+    codes = "_".join([k for k, v in df_dict.items()])[:100]
     fig.savefig(f"debug/report_{date2str(start_date)}_{date2str(end_date)}_{codes}.svg", dpi=200, format='svg')
 
 
-def plot_fund(fig, row, col, pos, df_data, df_data_market_value, df_buy_trades, df_sell_trades):
+def plot_stock(fig, row, col, pos, df_data, df_data_market_value, df_buy_trades, df_sell_trades):
     """
     :param fig:
     :param row:
@@ -146,25 +196,8 @@ def plot_fund(fig, row, col, pos, df_data, df_data_market_value, df_buy_trades, 
     ax_fund_accumulate.set_ylabel('累计净值', color='g')  # 设置Y轴标题
     ax_fund_accumulate.spines['right'].set_position(('outward', 60))  # right, left, top, bottom
     # h_fund_accumulate, = ax_fund_accumulate.plot(df_data.index, df_data.close, 'b', linewidth=2)
-    mc = mpf.make_marketcolors(
-        up='red',
-        down='green',
-        edge='i',
-        wick='i',
-        volume='in',
-        inherit=True)
-    s = mpf.make_mpf_style(
-        gridaxis='both',
-        gridstyle='-.',
-        y_on_right=False,
-        marketcolors=mc)
-    kwargs = dict(
-        type='candle',
-        volume=False,
-        title='基金的走势',
-        ylabel='K线',
-        ylabel_lower='')  # ,figratio=(15, 10)
-    mpf.plot(df_data, ax=ax_fund_accumulate, style=s, type='candle', show_nontrading=True)
+
+    mpf.plot(df_data, ax=ax_fund_accumulate, style=style, type='candle', show_nontrading=True)
 
     # 画买卖信号
     ax_fund_accumulate.scatter(df_buy_trades.actual_date, df_buy_trades.price, marker='^', c='r', s=40)

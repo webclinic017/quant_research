@@ -352,7 +352,7 @@ class Broker:
             return False
 
         if self.positions[code].position == 0:
-            logger.warning("[%s]创建卖单失败，[%s]仓位为0", date2str(date), code)
+            # logger.warning("[%s]创建卖单失败，[%s]仓位为0", date2str(date), code)
             return False
 
         if position and position > self.positions[code].position:

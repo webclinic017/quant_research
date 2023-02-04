@@ -16,6 +16,7 @@ class TripleStrategy(Strategy):
     def __init__(self, broker, params):
         super().__init__(broker, None)
         self.params = params
+        self.df_position = pd.DataFrame()
 
     def set_data(self, df_dict: dict, df_baseline=None):
         super().set_data(df_baseline, df_dict)
@@ -59,7 +60,7 @@ class TripleStrategy(Strategy):
 
         # 根据北上资金的净流入的布林通道开仓
         if net_amount > upper:
-            logger.debug('[%s] 北上资金流出净值[%.1f] > 布林上轨[%.1f]，开仓：', date2str(today), net_amount, upper)
+            logger.debug('[%s] 北上资金流入净值[%.1f] > 布林上轨[%.1f]，开仓：', date2str(today), net_amount, upper)
 
             # 获得今日的10大净流入股票，因为有沪市top10+深市top10，所有有20只
             df_today_stocks = self.get_value(self.df_top10, today)
@@ -78,6 +79,9 @@ class TripleStrategy(Strategy):
                 # 需要动态把这只股票加入到broker中
                 self.broker.add_data(code,df)
 
+                # 获得今日这只股票的调整后的zscore
+                zscore = self.get_value(df,today,'adjust_zscore')
+
                 # 如果这只股票已经在持仓中
                 if code in self.broker.positions.keys():
                     logger.debug("[%s] 已经在持仓中，检查是否需要卖出", code)
@@ -88,18 +92,26 @@ class TripleStrategy(Strategy):
                     else:
                         logger.debug("[%s] 持仓中，zsocre > -S [%.1f/%1.f]，继续持有", code, zscore, - self.params.S)
                 else:
-                    # 获得今日这只股票的调整后的zscore
-                    zscore = self.get_value(df, today, 'adjust_zscore')
                     if zscore > self.params.S:
                         self.broker.buy(code, trade_date, amount=self.params.per_amount)
                         logger.debug('[%r] 挂买单，股票[%s]/目标日期[%s]', date2str(today), code, date2str(trade_date))
+            self.df_position =self.df_position.append({
+                'date': today,
+                'position':'open', # 开仓
+                'net_amount': net_amount}, ignore_index=True)
 
         # 清仓
         if net_amount < lower:
-            logger.debug('[%s] 北上资金流出净值[%.1f] < 布林下轨[%.1f]，全部清仓！', date2str(today), net_amount, lower)
+            logger.debug('[%s] 北上资金流入净值[%.1f] < 布林下轨[%.1f]，全部清仓！', date2str(today), net_amount, lower)
             for code,position in self.broker.positions.items():
+                if position.position==0: continue
+
                 logger.debug('[%s] 清仓[%s],股数[%.1f]', date2str(today), position.code, position.position)
                 self.broker.sell_out(position.code, trade_date)
+            self.df_position =self.df_position.append({
+                'date': today,
+                'position':'close', # 开仓
+                'net_amount': net_amount}, ignore_index=True)
 
     def calculte_stock_rsrs(self, code):
         df = None
@@ -110,7 +122,6 @@ class TripleStrategy(Strategy):
             df = set_date_index(df)
             logger.debug("加载调整zscore股票[%s]数据:%s", code, cache_zscore_csv)
         if df is None:  # 如果数据无缓存，就需要加载股票数据，并计算beta,r2,adjust_zscore
-            print(code)
             df = data_loader.load_stock(code)
             df = self.calculate_rsrs(df)
             df.to_csv(cache_zscore_csv)

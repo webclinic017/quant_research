@@ -37,7 +37,7 @@ def backtest(df_baseline: DataFrame, df_dict, params):
     # 运行回测！！！
     backtester.run()
 
-    return broker.df_total_market_value, broker, banker
+    return broker.df_total_market_value, broker, banker,strategy.df_position
 
 
 def print_trade_details(start_date, end_date, amount, df_baseline, df_dict, df_portfolio, broker, banker):
@@ -102,7 +102,7 @@ def main(params):
     df_dict['top10'] = load_hsgt_top10()
     df_dict['moneyflow'] = load_moneyflow_hsgt()
 
-    df_portfolio, broker, banker = backtest(df_baseline, df_dict, params)
+    df_portfolio, broker, banker, df_moneyflow_position = backtest(df_baseline, df_dict, params)
 
     df_portfolio.sort_values('date')
     df_portfolio.set_index('date', inplace=True)
@@ -128,8 +128,11 @@ def main(params):
                                   broker,
                                   banker)
 
+    for code,df in df_dict.items():
+        df_dict[code]= df[(df.index > start_date) & (df.index < end_date)]
+
     # 每只基金都给他单独画一个收益图
-    plot(start_date, end_date, broker, df_baseline, df_portfolio, df_dict, df_stat)
+    plot(start_date, end_date, broker, df_baseline, df_portfolio, df_dict, df_stat,df_moneyflow_position)
 
     return df_stat
 

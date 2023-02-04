@@ -107,6 +107,7 @@ def load_hsgt_top10():
     df = load('hsgt_top10', __load_hsgt_top10)
     df['date'] = pd.to_datetime(df.date.apply(str), format='%Y-%m-%d')
     df = df.set_index('date')
+    df = df.sort_index()
     return df
 
 
@@ -143,7 +144,10 @@ def __load_hsgt_top10():
 
 def load_moneyflow_hsgt():
     df = load('moneyflow_hsgt', __load_moneyflow_hsgt)
-    return set_date_index(df)
+    df = set_date_index(df)
+    df = df.sort_index()
+    return df
+
 
 def set_date_index(df,date_column='date'):
     df[date_column] = pd.to_datetime(df.date.apply(str), format='%Y-%m-%d')
