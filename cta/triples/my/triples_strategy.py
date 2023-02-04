@@ -72,6 +72,7 @@ class TripleStrategy(Strategy):
             df_today_stocks = df_today_stocks.iloc[self.params.top10_scope[0]:self.params.top10_scope[1]]
 
             # https://tushare.pro/document/2?doc_id=48
+            buy_list = []
             for _, s_stock in df_today_stocks.iterrows():
                 code = s_stock.code
 
@@ -90,11 +91,18 @@ class TripleStrategy(Strategy):
                         self.broker.sell_out(code, trade_date)
                         logger.debug('[%r] 挂买单，股票[%s]/目标日期[%s]', date2str(today), code, date2str(trade_date))
                     else:
-                        logger.debug("[%s] 持仓中，zsocre > -S [%.1f/%1.f]，继续持有", code, zscore, - self.params.S)
+                        logger.debug("[%s] 持仓中，zsocre[%.1f] > -S[%1.f]，继续持有", code, zscore, - self.params.S)
                 else:
                     if zscore > self.params.S:
-                        self.broker.buy(code, trade_date, amount=self.params.per_amount)
-                        logger.debug('[%r] 挂买单，股票[%s]/目标日期[%s]', date2str(today), code, date2str(trade_date))
+                        logger.debug("[%s] 未持仓，zsocre[%.1f] > S [%1.f]，买入！", code, zscore,self.params.S)
+                        buy_list.append(code)
+
+            if len(buy_list)>0:
+                per_amount = self.broker.total_cash/len(buy_list)
+                for code in buy_list:
+                    self.broker.buy(code, trade_date, amount=per_amount)
+                    logger.debug('[%r] 挂买单，股票[%s]/目标日期[%s]', date2str(today), code, date2str(trade_date))
+
             self.df_position =self.df_position.append({
                 'date': today,
                 'position':'open', # 开仓
@@ -116,11 +124,11 @@ class TripleStrategy(Strategy):
     def calculte_stock_rsrs(self, code):
         df = None
         # 缓存一下，否则，速度太慢了，计算一个需要3秒
-        cache_zscore_csv = f"data/{code}_beta_zscore.csv"
+        cache_zscore_csv = f"data/{code}_beta_zscore_N{self.params.N}_M{self.params.M}.csv"
         if os.path.exists(cache_zscore_csv):
             df = pd.read_csv(cache_zscore_csv,dtype={'code':str})
             df = set_date_index(df)
-            logger.debug("加载调整zscore股票[%s]数据:%s", code, cache_zscore_csv)
+            # logger.debug("加载调整zscore股票[%s]数据:%s", code, cache_zscore_csv)
         if df is None:  # 如果数据无缓存，就需要加载股票数据，并计算beta,r2,adjust_zscore
             df = data_loader.load_stock(code)
             df = self.calculate_rsrs(df)
@@ -168,7 +176,7 @@ class TripleStrategy(Strategy):
             # 参考这种方法，解决rolling.apply无法返回多个结果的问题
             # https://stackoverflow.com/questions/62716558/pandas-apply-on-rolling-with-multi-column-output
             df.loc[close.index, ['beta', 'r2']] = [beta, r2]
-            return 1  # 返回1是瞎返回的，
+            return 1  # 返回1是瞎返回的，没用，更新其实发生在上一行
 
         def clac_adjust_zscore(close):
             """

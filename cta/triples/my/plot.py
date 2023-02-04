@@ -73,10 +73,13 @@ def plot(start_date, end_date, broker, df_baseline, df_portfolio, df_dict, df_st
     ax_baseline.set_ylabel(f'基准{df_baseline.iloc[0].code}', color='r')  # 设置Y轴标题
     ax_portfolio = ax_baseline.twinx()  # 返回共享x轴的第3个轴
     h_portfolio, = ax_portfolio.plot(df_portfolio.index, df_portfolio.total_value, 'c')
-    ax_portfolio.set_ylabel(f'组合投资的总市值', color='r')  # 设置Y轴标题
-    #
+    ax_portfolio.set_ylabel(f'组合投资的总市值', color='c')  # 设置Y轴标题
+    ax_portfolio.spines['right'].set_position(('outward', 60))  # right, left, top, bottom
+    # 画北上资金流
     df_moneyflow = df_dict['moneyflow']
     ax_moneyflow = ax_baseline.twinx()  # 返回共享x轴的第3个轴
+    ax_moneyflow.set_ylabel('北上资金', color='r')  # 设置Y轴标题
+    ax_moneyflow.spines['right'].set_position(('outward', 120))  # right, left, top, bottom
     h_moneyflow, = ax_moneyflow.plot(df_moneyflow.index, df_moneyflow.net_amount, 'r')
     # 画开仓信号
     df_open = df_moneyflow_position[df_moneyflow_position.position == 'open']
@@ -84,31 +87,14 @@ def plot(start_date, end_date, broker, df_baseline, df_portfolio, df_dict, df_st
     # 画清仓信号
     df_close = df_moneyflow_position[df_moneyflow_position.position == 'close']
     ax_moneyflow.scatter(df_close.date, df_close.net_amount, marker='v', c='g', s=40)
-    # 画出上下规定的边界区域
+    # 画出北上资金上下规定的边界区域
     ax_moneyflow.fill_between(df_moneyflow.index, df_moneyflow.upper, df_moneyflow.lower, alpha=0.2)
-    #
+    # 画图例
     plt.legend(handles=[h_portfolio],
                labels=['组合投资的总市值'],
                loc='best')
 
     ################ 画第二张图 ################
-    pos += 1
-    # 画出价格来
-    ax_moneyflow = fig.add_subplot(row, col, pos)
-    df_moneyflow = df_dict['moneyflow']
-    # df_moneyflow = df_moneyflow.sort_index()
-    h_moneyflow, = ax_moneyflow.plot(df_moneyflow.index, df_moneyflow.net_amount, 'r')
-    # 画出上下规定的边界区域
-    ax_moneyflow.fill_between(df_moneyflow.index, df_moneyflow.upper, df_moneyflow.lower, alpha=0.2)
-    # ax_moneyflow.grid()
-    ax_moneyflow.set_title(f"北上资金情况")
-    ax_moneyflow.set_xlabel('日期')  # 设置x轴标题
-    ax_moneyflow.xaxis.set_major_locator(mdates.MonthLocator(interval=1))
-    ax_moneyflow.xaxis.set_major_formatter(mdates.DateFormatter('%Y/%m'))
-    ax_moneyflow.xaxis.set_tick_params(rotation=45)
-    plt.legend(handles=[h_moneyflow], labels=['北上资金净值'], loc='best')
-
-    ################ 画第三张图 ################
     # 画：'总市值', '持仓', '现金'
 
     pos += 1

@@ -154,9 +154,9 @@ class Broker:
 
         # 创建，或者，更新持仓
         self.positions[trade.code].update(date, -position, price)
-        if self.positions[trade.code] == 0:
+        if self.positions[trade.code].position == 0:
             logger.info("基金/股票[%s]仓位为0，清仓", trade.code)
-            self.positions.pop(trade.ts_code, None)  # None可以防止pop异常
+            self.positions.pop(trade.code, None)  # None可以防止pop异常
 
         return True
 
