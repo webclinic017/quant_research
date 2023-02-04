@@ -99,10 +99,10 @@ class Broker:
             # 使用try/exception + 索引loc是为了提速，直接用列，或者防止KeyError的intersection，都非常慢， 60ms vs 3ms，20倍关系
             # 另外，date列是否是str还是date/int对速度影响不大
             # df_stock = self.df_daily.loc[self.df_daily.index.intersection([(date, trade.code)])]
-            df = self.fund_dict[trade.code]
+            df = self.fund_dict[trade.code[:6]]
             series_fund = df.loc[trade.target_date]
         except KeyError:
-            logger.warning("基金[%s]没有在[%s]无数据，无法买入，只能延后", trade.code, date)
+            logger.warning("[%s] 在 [%s]日 没有数据，无法买入，只能延后", trade.code, date2str(date))
             return False
 
         price = series_fund.open # 要用开盘价来买入

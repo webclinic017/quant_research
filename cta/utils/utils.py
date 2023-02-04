@@ -1,15 +1,15 @@
 import datetime
+import functools
 import json
-import math
-import pickle
-
-import numpy as np
 import logging
+import math
 import os
 import time
-import functools
+import calendar
 
 import dask
+import numpy as np
+import statsmodels.api as sm
 import yaml
 from backtrader_plotting.schemes import Tradimo
 from dask import compute, delayed
@@ -293,3 +293,83 @@ def calc_size(cash, price, commission_rate):
     # 要是100的整数倍
     size = (size // 100) * 100
     return size
+
+
+def OLS(X, y):
+    """
+    做线性回归，返回 β0（截距）、β1（系数）和残差
+    参考：https://blog.csdn.net/chongminglun/article/details/104242342
+    :param X: shape(N,M)，M位X的维度，一般M=1
+    :param y: shape(N)
+    :return:参数[β0、β1]，R2
+    """
+    assert not np.isnan(X).any(), f'X序列包含nan:{X}'
+    assert not np.isnan(y).any(), f'y序列包含nan:{y}'
+
+    # 增加一个截距项
+    X = sm.add_constant(X)
+    # 定义模型
+    model = sm.OLS(y, X)  # 定义x，y
+    results = model.fit()
+    # 参数[β0、β1]，R2
+    return results.params, results.rsquared
+
+def load_params(name='params.yml'):
+    if not os.path.exists(name):
+        raise ValueError(f"参数文件[{name}]不存在，请检查路径")
+    params = yaml.load(open(name,'r',encoding='utf-8'),Loader=yaml.FullLoader)
+    params = AttributeDict(params.items())
+    return params
+
+def get_monthly_duration(start_date, end_date):
+    """
+    把开始日期到结束日期，分割成每月的信息
+    比如20210301~20220515 =>
+    [   [20210301,20210331],
+        [20210401,20210430],
+        ...,
+        [20220401,20220430],
+        [20220501,20220515]
+    ]
+    """
+
+    start_date = str2date(start_date)
+    end_date = str2date(end_date)
+    years = list(range(start_date.year, end_date.year + 1))
+    scopes = []
+    for year in years:
+        if start_date.year == year:
+            start_month = start_date.month
+        else:
+            start_month = 1
+
+        if end_date.year == year:
+            end_month = end_date.month + 1
+        else:
+            end_month = 12 + 1
+
+        for month in range(start_month, end_month):
+
+            if start_date.year == year and start_date.month == month:
+                s_start_date = date2str(datetime.date(year=year, month=month, day=start_date.day))
+            else:
+                s_start_date = date2str(datetime.date(year=year, month=month, day=1))
+
+            if end_date.year == year and end_date.month == month:
+                s_end_date = date2str(datetime.date(year=year, month=month, day=end_date.day))
+            else:
+                _, last_day = calendar.monthrange(year, month)
+                s_end_date = date2str(datetime.date(year=year, month=month, day=last_day))
+
+            scopes.append([s_start_date, s_end_date])
+
+    return scopes
+
+# python -m utils.utils
+if __name__ == '__main__':
+    p = load_params('triples/params.yml')
+    print(p)
+    print(p.start_date)
+
+    p = get_monthly_duration('20140101','20230201')
+    print(p)

@@ -8,6 +8,7 @@ from backtrader.feeds import PandasData
 import tushare as ts
 
 from utils import utils
+from utils.utils import get_monthly_duration
 
 logger = logging.getLogger(__name__)
 
@@ -105,28 +106,36 @@ def load_fund(code):
 
 def load_hsgt_top10():
     df = load('hsgt_top10', __load_hsgt_top10)
-    df['date'] = pd.to_datetime(df['date'], format='%Y-%m-%d')
+    df['date'] = pd.to_datetime(df.date.apply(str), format='%Y-%m-%d')
     df = df.set_index('date')
-
     return df
 
 
 def __load_hsgt_top10():
     """
     https://tushare.pro/document/2?doc_id=48
+    这个实现比较麻烦，主要是每次只能tushare返回300条,
+    所以，我只能每个月下载一次，
     :param pro:
     :return:
     """
     pro = ts.pro_api(utils.load_config()['token'])
     dfs = []
     # 看了数据，是从2014.11才开始有的
-    for year in range(2014, 2023):
-        start = f'{year}0101'
-        end = f'{year}1231'
+
+    period_scopes = get_monthly_duration('20141101','20230201')
+    from tqdm import tqdm
+
+    bar = tqdm()
+    for i,period_scope in enumerate(period_scopes):
+        start = period_scope[0]
+        end = period_scope[1]
         df = pro.hsgt_top10(start_date=start, end_date=end, market_type='1')
         dfs.append(df)
-        df = pro.hsgt_top10(start_date=start, end_date=end, market_type='2')
+        df = pro.hsgt_top10(start_date=start, end_date=end, market_type='3')
         dfs.append(df)
+        bar.update(i)
+    bar.close()
     df = pd.concat(dfs)
     df.rename(columns={'trade_date': 'date', 'trade_code': 'code'}, inplace=True)
     return df
@@ -134,7 +143,7 @@ def __load_hsgt_top10():
 
 def load_moneyflow_hsgt():
     df = load('moneyflow_hsgt', __load_moneyflow_hsgt)
-    df['date'] = pd.to_datetime(df['date'], format='%Y-%m-%d')
+    df['date'] = pd.to_datetime(df.date.apply(str), format='%Y-%m-%d')
     df = df.set_index('date')
     return df
 
@@ -153,7 +162,7 @@ def __load_moneyflow_hsgt():
         start = f'{year}0101'
         end = f'{year}1231'
         df = pro.moneyflow_hsgt(start_date=start, end_date=end)
-    dfs.append(df)
+        dfs.append(df)
     df = pd.concat(dfs)
     df.rename(columns={'trade_date': 'date'}, inplace=True)
 

@@ -179,3 +179,35 @@ def calc_zscore_Rdev(stock):
     sigma = np.std(section)
     zscore = (section[-1] - mu) / sigma
     # 计算右偏RS
+    #计算右偏RSRS标准分
+    if signal:
+        return zscore*r2
+    else:
+        return zscore*r2**(2*cal_ret_quantile(ret))
+
+def cal_ret_quantile(price_df):
+
+    # 计算收益波动
+    ret_std = np.sqrt(price_df.rolling(g.quantile_N).std())
+    ret_quantile = ret_std.rolling(g.quantile_M).apply(
+        lambda x: x.rank(pct=True)[-1], raw=False)
+
+    return ret_quantile.values[-1]
+
+def get_up_stock(stocks, fq='post'):
+    current_price = [attribute_history(stock, 1, '1m', ['close'], fq=fq)['close'][0] for stock in stocks]
+    lastd_close = [attribute_history(stock,1,'1d',['open'],fq = fq)['open'][0] for stock in stocks ]
+    final_stocks = pd.DataFrame(current_price,index = stocks,columns = ['current_price'])
+    final_stocks['lastd_close'] = lastd_close
+    return final_stocks[final_stocks.current_price > g.up_ratio * final_stocks.lastd_close].index.values
+def get_ols(X,y):
+    X = list(X)
+    y = list(y)
+    if X and y:
+        n = len(y)
+        cov = np.cov(np.vstack((X,y)))
+        beta = cov[0,1]/cov[0,0]
+
+        r2 = beta**2 * cov[0,0]/cov[1,1]
+        return beta,r2
+    return 0,0

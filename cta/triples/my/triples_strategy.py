@@ -3,23 +3,26 @@ import logging
 import talib
 
 from backtest.strategy import Strategy
-from utils.utils import date2str
+from utils import data_loader
+from utils.utils import date2str, OLS
 
 logger = logging.getLogger(__name__)
 
 
 class TripleStrategy(Strategy):
 
-    def __init__(self, broker, atr, ema):
+    def __init__(self, broker, params):
         super().__init__(broker, None)
-        self.atr = atr
-        self.ema = ema
+        self.params = params
+        # 因为股票是动态判断的（北上资金每天的股票是动态变化的），所以要设一个缓冲池，动态加入
+        self.stock_pools = {}
 
     def set_data(self, df_dict: dict, df_baseline=None):
         super().set_data(df_baseline, df_dict)
-        df_flow = df_dict['moneyflow_hsgt']
 
         """
+        1. 计算布林通道。
+        
         https://tushare.pro/document/2?doc_id=47
         north_money	float	北向资金（百万元）
         south_money	float	南向资金（百万元）
@@ -28,28 +31,135 @@ class TripleStrategy(Strategy):
         上轨线 = 90日的SMA +（90日的标准差 x 2）
         下轨线 = 90日的SMA -（90日的标准差 x 2）
         """
+        df_flow = df_dict['moneyflow']
+        df_flow = df_flow.dropna()
         df_flow['net_amount'] = df_flow.north_money - df_flow.south_money
-        df_flow['mid'] = talib.SMA(df_flow.net_amount, timeperiod=90)
-        df_flow['std'] = talib.STDDEV(df_flow.net_amount, timeperiod=90, nbdev=1)
-        df_flow['upper'] = df_flow.mid + 2 * df_flow.std
-        df_flow['lower'] = df_flow.mid - 2 * df_flow.std
+        df_flow['_mid'] = talib.SMA(df_flow.net_amount, timeperiod=self.params.bolling_period)
+        df_flow['_std'] = talib.STDDEV(df_flow.net_amount, timeperiod=self.params.bolling_period, nbdev=1)
+        df_flow['upper'] = df_flow._mid + self.params.bolling_std * df_flow._std
+        df_flow['lower'] = df_flow._mid - self.params.bolling_std * df_flow._std
+        self.df_flow = df_flow
 
+        self.df_top10 = df_dict['top10']
 
     def next(self, today, trade_date):
         super().next(today, trade_date)
 
-        for code, df in self.df_dict.items():
+        s_flow = self.get_value(self.df_flow, index_key=today)
+        if s_flow is None: return
 
-            s = self.get_value(df, today)
-            if s is None: continue
+        net_amount = s_flow.net_amount
+        upper = s_flow.upper
+        lower = s_flow.lower
 
-            # 如果空仓
-            if not self.get_position(code) or self.get_position(code).position == 0:
-                if s.close > s.upper:
-                    self.broker.buy(code, trade_date, amount=10000)
-                    logger.debug('[%r] 挂买单，股票[%s]/目标日期[%s]', date2str(today), code, date2str(trade_date))
-            # 如果持仓
-            else:
-                if s.close < s.lower:
-                    logger.debug('[%r] 挂卖单，股票[%s]/目标日期[%s]', date2str(today), code, date2str(trade_date))
-                    self.broker.sell_out(code, trade_date)
+        # logger.debug("指标：净值[%.1f],上轨[%.1f],下轨[%.1f]",net_amount,upper,lower)
+
+        # 根据北上资金的净流入的布林通道开仓
+        if net_amount > upper:
+            logger.debug('[%s] 北上资金流出净值[%.1f] > 布林上轨[%.1f]，开仓：', date2str(today), net_amount, upper)
+
+            # 获得今日的10大净流入股票，因为有沪市top10+深市top10，所有有20只
+            df_today_stocks = self.get_value(self.df_top10, today)
+            if df_today_stocks is None:
+                logger.warning('今日[%s]没有流入股票',date2str(today))
+                return
+            # 按照净值流入从大到小排列（原作者是按照买入股份数，我没这个数据，用净流入资金更实在）
+            df_today_stocks = df_today_stocks.sort_values(by='net_amount',ascending=False)
+            df_today_stocks = df_today_stocks.iloc[self.params.top10_scope[0]:self.params.top10_scope[1]]
+
+            # https://tushare.pro/document/2?doc_id=48
+            for _,s_stock in df_today_stocks.iterrows():
+                code = s_stock.code
+
+                # import pdb;pdb.set_trace()
+                df = self.stock_pools.get(code, None)
+                if df is None:  # 如果数据无缓存，就需要加载股票数据，并计算beta,r2,adjust_zscore
+                    df = data_loader.load_stock(code)
+                    logger.debug("[%s] 无缓存，加载了数据", code)
+                    df = self.calculate_rsrs(df)
+                    logger.debug("[%s] 计算了其调整后的zscore", code)
+
+                # 如果这只股票已经在持仓中
+                if code in self.broker.positions.keys():
+                    logger.debug("[%s] 已经在持仓中，检查是否需要卖出", code)
+                    if zscore < - self.params.S:
+                        logger.debug("[%s] 持仓中，zsocre < -S [%.1f/%1.f]，清仓！", code, zscore, - self.params.S)
+                        self.broker.sell_out(code, trade_date)
+                        logger.debug('[%r] 挂买单，股票[%s]/目标日期[%s]', date2str(today), code, date2str(trade_date))
+                    else:
+                        logger.debug("[%s] 持仓中，zsocre > -S [%.1f/%1.f]，继续持有", code, zscore, - self.params.S)
+                else:
+                    # 获得今日这只股票的调整后的zscore
+                    zscore = self.get_value(df, today, 'adjust_zscore')
+                    if zscore > self.params.S:
+                        self.broker.buy(code, trade_date, amount=self.params.per_amount)
+                        logger.debug('[%r] 挂买单，股票[%s]/目标日期[%s]', date2str(today), code, date2str(trade_date))
+
+        # 清仓
+        if net_amount < lower:
+            logger.debug('[%s] 北上资金流出净值[%.1f] < 布林下轨[%.1f]，全部清仓！', date2str(today), net_amount, lower)
+            for position in self.broker.positions:
+                logger.debug('[%s] 清仓[%s],股数[%.1f]', date2str(today), position.code, position.position)
+                self.broker.sell_out(position.code, trade_date)
+
+    def calculate_rsrs(self, df):
+        """
+                loc = df.index.get_loc(today)
+        df_recent = df.iloc[loc - self.params.N:loc]
+
+        https://zhuanlan.zhihu.com/p/33501881
+        https://www.joinquant.com/view/community/detail/b6c8d8ad459ac6188a77289916bc7407
+        https://mp.weixin.qq.com/s/iX887oJw6gQ_mBRJaIyHQQ
+        http://pg.jrj.com.cn/acc/Res/CN_RES/INVEST/2017/5/1/b4f37401-639d-493f-a810-38246b9c3c7d.pdf
+        https://www.joinquant.com/algorithm/index/edit?algorithmId=230d7347cc4fc756a13f360f0529623c
+
+        用最低价去拟合最高价，计算出beta来，用的是18天的数据
+
+        第一种方法是直接将斜率作为指标值。当日RSRS斜率指标择时策略如下：
+        1、取前N日最高价与最低价序列。（N = 18）
+        2、将两个序列进行OLS线性回归。
+        3、将拟合后的β值作为当日RSRS斜率指标值。
+        4、当RSRS斜率大于S(buy)时，全仓买入，小于S(sell)时，卖出平仓。（S(buy)=1,S(sell)=0.8）
+
+        high = alpha + beta * low + epsilon
+        :param df:
+        :param today:
+        :return:
+        """
+
+        def clac_rsrs(close):
+            """
+            计算18天内的最高和最低价的beta值
+            high = alpha + beta * low + epsilon
+            """
+            df_periods = df.loc[close.index]
+            params, r2 = OLS(df_periods.high, df_periods.low)
+            beta = params[1]
+            # 参考这种方法，解决rolling.apply无法返回多个结果的问题
+            # https://stackoverflow.com/questions/62716558/pandas-apply-on-rolling-with-multi-column-output
+            df.loc[close.index, ['beta', 'r2']] = [beta, r2]
+            return 1  # 返回1是瞎返回的，
+
+        def clac_adjust_zscore(close):
+            """
+            按照研报中说的，用rsrs(beta)250日的均值 * r2值，作为调整后的zscore
+            :param close:
+            :return:
+            """
+            df1 = df.loc[close.index]
+            mean = df1.beta.mean()
+            std = df1.beta.std()
+            beta = df1.iloc[-1].beta
+            r2 = df1.iloc[-1].r2
+            zscore = (beta - mean) / std
+            adjust_zscore = zscore * r2
+            df.loc[close.index, ['zscore', 'adjust_zscore']] = [zscore, adjust_zscore]
+            return 1
+
+        # 先计算18天窗口期内的beta和r2
+        df.close.rolling(window=18).apply(clac_rsrs, raw=False)
+
+        # 再计算250天窗口期的移动平均值
+        df.beta.rolling(window=250).apply(clac_adjust_zscore, raw=False)
+
+        return df

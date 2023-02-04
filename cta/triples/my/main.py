@@ -1,6 +1,5 @@
 import argparse
 import logging
-import tushare as ts
 
 from pandas import DataFrame
 from tabulate import tabulate
@@ -9,10 +8,10 @@ from backtest.backtester import BackTester
 from backtest.banker import Banker
 from backtest.broker import Broker
 from backtest.stat import calculate_metrics
-from ketler.my.ketler_strategy import KelterStrategy
 from ketler.my.plot import plot
+from triples.my.triples_strategy import TripleStrategy
 from utils import utils
-from utils.data_loader import load_index, load_stocks, load_hsgt_top10, load_moneyflow_hsgt
+from utils.data_loader import load_index, load_hsgt_top10, load_moneyflow_hsgt
 from utils.utils import str2date, date2str
 
 logger = logging.getLogger(__name__)
@@ -22,13 +21,13 @@ logger = logging.getLogger(__name__)
 """
 
 
-def backtest(df_baseline: DataFrame, df_dict, args):
+def backtest(df_baseline: DataFrame, df_dict, params):
     banker = Banker()
     broker = Broker(0, banker)
     broker.set_buy_commission_rate(0.0001)  # 参考华宝证券：ETF手续费万1，单笔最低0.2元
     broker.set_sell_commission_rate(0)
-    backtester = BackTester(broker, args.start_date, args.end_date, buy_day='tomorrow')
-    strategy = KelterStrategy(broker, args.atr, args.ema)
+    backtester = BackTester(broker, params.start_date, params.end_date, buy_day='tomorrow')
+    strategy = TripleStrategy(broker, params)
     backtester.set_strategy(strategy)
 
     # 单独调用一个set_data，是因为里面要做特殊处理
@@ -92,25 +91,22 @@ def print_trade_details(start_date, end_date, amount, df_baseline, df_dict, df_p
     return df_stat
 
 
-def main(args):
-    df_baseline = load_index(index_code=args.baseline)
+def main(params):
 
     # 加载基金数据，标准化列名，close是为了和标准的指数的close看齐
-    df_top10 = load_hsgt_top10()
-    df_moneyflow = load_moneyflow_hsgt()
+    df_dict = {}
+    df_dict['baseline'] = df_baseline = load_index(index_code=params.baseline)
+    df_dict['top10'] = load_hsgt_top10()
+    df_dict['moneyflow'] = load_moneyflow_hsgt()
 
-    print(df_top10)
-    print(df_moneyflow)
-    exit()
-
-    df_portfolio, broker, banker = backtest(df_baseline, df_dict, args)
+    df_portfolio, broker, banker = backtest(df_baseline, df_dict, params)
 
     df_portfolio.sort_values('date')
     df_portfolio.set_index('date', inplace=True)
 
     # 统一过滤一下时间区间,
-    start_date = str2date(args.start_date)
-    end_date = str2date(args.end_date)
+    start_date = str2date(params.start_date)
+    end_date = str2date(params.end_date)
 
     df_baseline = df_baseline[(df_baseline.index > start_date) & (df_baseline.index < end_date)]
     df_portfolio = df_portfolio[(df_portfolio.index > start_date) & (df_portfolio.index < end_date)]
@@ -119,7 +115,7 @@ def main(args):
     if banker:
         amount = banker.debt
     else:
-        amount = args.amount
+        amount = params.amount
     df_stat = print_trade_details(start_date,
                                   end_date,
                                   amount,
@@ -136,27 +132,15 @@ def main(args):
 
 
 """
-python -m triples.my.main \
--b sh000001 \
--c 300347.SZ \
--s 20200101 \
--e 20220501 \
--a 17 \
--em 20
+python -m triples.my.main
 """
 if __name__ == '__main__':
     utils.init_logger(file=True)
 
     # 获得参数
     parser = argparse.ArgumentParser()
-    parser.add_argument('-s', '--start_date', type=str, default="20150101", help="开始日期")
-    parser.add_argument('-e', '--end_date', type=str, default="20221201", help="结束日期")
-    parser.add_argument('-b', '--baseline', type=str, default=None, help="基准指数，这个策略里就是基金本身")
-    parser.add_argument('-c', '--code', type=str, help="股票代码")
-    parser.add_argument('-a', '--atr', type=int, default=17)
-    parser.add_argument('-em', '--ema', type=int, default=20)
-
-    args = parser.parse_args()
-    print(args)
-    logger.info(args)
-    main(args)
+    parser.add_argument('-c', '--conf', type=str, default="triples/params.yml", help="参数文件路径")
+    __params = parser.parse_args()
+    params = utils.load_params(__params.conf)
+    logger.info(params)
+    main(params)
