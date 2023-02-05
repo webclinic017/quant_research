@@ -1,5 +1,6 @@
 conf/
-*.yml
+conf.yml
+config.yml
 *.csv
 logs/
 .DS_Store

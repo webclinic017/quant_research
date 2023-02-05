@@ -107,9 +107,9 @@ def plot(start_date, end_date, broker, df_baseline, df_portfolio, df_dict, df_st
     ax_baseline.xaxis.set_tick_params(rotation=45)
 
     # 画组合收益
-    h_portfolio, = ax_baseline.plot(df_portfolio.index, df_portfolio.total_value, 'c')
     h_position, = ax_baseline.plot(df_portfolio.index, df_portfolio.total_position_value, 'g')
     h_cash, = ax_baseline.plot(df_portfolio.index, df_portfolio.cash, color='#aaaaaa')
+    h_portfolio, = ax_baseline.plot(df_portfolio.index, df_portfolio.total_value, 'c', linewidth=2)
     plt.legend(handles=[h_portfolio, h_position, h_cash],
                labels=['组合投资的总市值', '持仓', '现金'],
                loc='best')
@@ -133,7 +133,7 @@ def plot(start_date, end_date, broker, df_baseline, df_portfolio, df_dict, df_st
             (broker.df_trade_history.code == code) & (broker.df_trade_history.action == 'buy')]
         df_sell_trades = broker.df_trade_history[
             (broker.df_trade_history.code == code) & (broker.df_trade_history.action == 'sell')]
-        df_data_market = broker.fund_market_dict.get(code, None)
+        df_data_market = broker.market_value_dict.get(code, None)
         if df_data_market is None:
             # logger.warning("基金[%s] 在%s~%s未发生交易市值变化", code, date2str(start_date), date2str(end_date))
             continue
