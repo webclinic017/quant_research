@@ -110,6 +110,7 @@ def plot(start_date, end_date, broker, df_baseline, df_portfolio, df_dict, df_st
     h_position, = ax_baseline.plot(df_portfolio.index, df_portfolio.total_position_value, 'g')
     h_cash, = ax_baseline.plot(df_portfolio.index, df_portfolio.cash, color='#aaaaaa')
     h_portfolio, = ax_baseline.plot(df_portfolio.index, df_portfolio.total_value, 'c', linewidth=2)
+    ax_baseline.fill_between(df_portfolio.index, df_portfolio.total_value, 0, alpha=0.1)
     plt.legend(handles=[h_portfolio, h_position, h_cash],
                labels=['组合投资的总市值', '持仓', '现金'],
                loc='best')

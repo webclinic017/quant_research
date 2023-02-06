@@ -423,11 +423,11 @@ class Broker:
             'cash': self.total_cash,
             'total_position': total_position,
             'cost': cost}, ignore_index=True)
-        logger.debug("[%s] 总市值为[%.2f]=持仓[%.2f]+现金[%.2f]",
-                     date2str(date),
-                     total_position_value + self.total_cash,
-                     total_position_value,
-                     self.total_cash)
+        # logger.debug("[%s] 总市值为[%.2f]=持仓[%.2f]+现金[%.2f]",
+        #              date2str(date),
+        #              total_position_value + self.total_cash,
+        #              total_position_value,
+        #              self.total_cash)
 
     def update_market_value(self, date, code):
         """

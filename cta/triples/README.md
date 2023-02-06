@@ -80,10 +80,12 @@ $$ \beta * R^2 $$
 # 数据
 - [tushare北向资金的情况](https://tushare.pro/document/2?doc_id=47)
 - [tushare北向资金的10大股](https://tushare.pro/document/2?doc_id=48)
+- [聚宽沪深港通持股数据](https://www.joinquant.com/help/api/help#Stock:%E6%B2%AA%E6%B7%B1%E6%B8%AF%E9%80%9A%E6%8C%81%E8%82%A1%E6%95%B0%E6%8D%AE)
+
+*注:聚宽数据需要申请JQData，3个月免费，6000元+/年，我没有申请，用他的研究环境下载了北上持股数据*
 
 # 参考
 - [胜率超8成，仅个位数回撤的融合策略！](https://www.youtube.com/watch?v=e6nMhYl8avk&ab_channel=Devil%27sAdvocate)
 - [三元融合策略](https://mp.weixin.qq.com/s/iX887oJw6gQ_mBRJaIyHQQ)
 - [RSRS(阻力支撑相对强度)择时策略](https://zhuanlan.zhihu.com/p/33501881)
-- []()
-- []()
+- [光大证券《基于阻力支撑相对强度（RSRS）的市场择时》2017.5](http://pg.jrj.com.cn/acc/Res/CN_RES/INVEST/2017/5/1/b4f37401-639d-493f-a810-38246b9c3c7d.pdf)

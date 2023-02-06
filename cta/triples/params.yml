@@ -1,13 +1,15 @@
-start_date: "20200101"
-end_date: "20220101"
+start_date: "20180101"
+end_date: "20210101"
 baseline: 'sh000001'
-amount: 200000 # 初始总现金
+amount: 500000 # 初始总现金
 code: '510500.SH'
 N: 18 # RSRS求取beta用的移动天数（时间窗口）
 M: 600 # 再对RSRS值(beta)求取移动平均的天数
 S: 0.7 # 做标准分后使用的上下阈值（>0.7和<-0.7）
 S1: 1 # 斜率RSRS的上阈值
 S2: 0.8 # 斜率RSRS的下阈值
+rsrs_type: 'adjust_zscore' # beta,zscore,adjust_zscore
 bolling_period: 90 # 布林通道的SMA的天数
 bolling_std: 2  # 几倍标准差
 top10_scope: [3,20] # 北上资金选择的股票范围（沪深的top10，合计20个）
+stock_select: 'by_share_ratio' # by_net_amount, by_share_ratio ，是用tushare的净资金，还是用聚宽的share_ratio?

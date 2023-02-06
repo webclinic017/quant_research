@@ -10,7 +10,7 @@ from backtest.stat import calculate_metrics
 from triples.my.plot import plot
 from triples.my.triples_strategy import TripleStrategy
 from utils import utils
-from utils.data_loader import load_index, load_hsgt_top10, load_moneyflow_hsgt
+from utils.data_loader import load_index, load_hsgt_top10, load_moneyflow_hsgt, load_hk_bought_stocks
 from utils.utils import str2date, date2str
 
 logger = logging.getLogger(__name__)
@@ -44,7 +44,7 @@ def print_trade_details(start_date, end_date, amount, df_baseline, df_dict, df_p
     df_stat = DataFrame()
     # 如果是多只基金一起投资，挨个统计他们各自的情况
     for code, df_data in df_dict.items():
-        if code in ['moneyflow','top10','baseline']: continue
+        if code in ['moneyflow','stock_pool','baseline']: continue
 
         df_data = df_data[(df_data.index > start_date) & (df_data.index < end_date)]
         df_portfolio = df_portfolio[(df_portfolio.index > start_date) & (df_portfolio.index < end_date)]
@@ -99,7 +99,10 @@ def main(params):
     # 加载基金数据，标准化列名，close是为了和标准的指数的close看齐
     df_dict = {}
     df_dict['baseline'] = df_baseline = load_index(index_code=params.baseline)
-    df_dict['top10'] = load_hsgt_top10()
+    if params.stock_select == 'by_net_amount': # 使用tushare的净现金流的股票
+        df_dict['stock_pool'] = load_hsgt_top10()
+    else:
+        df_dict['stock_pool'] = load_hk_bought_stocks()
     df_dict['moneyflow'] = load_moneyflow_hsgt()
 
     df_portfolio, broker, banker, df_moneyflow_position = backtest(df_baseline, df_dict, params)

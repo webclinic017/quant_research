@@ -103,6 +103,24 @@ def load_fund(code):
     return df_fund
 
 
+def load_hk_bought_stocks():
+    """
+    从2018.1.1至今的北上资金购买的每日沪深300数据
+    这个是数据是我从聚宽爬下来的:
+        ,date,name,code,share_ratio
+        0,2018-01-02,平安银行,000001.XSHE,2.12
+    :return:
+    """
+    file_name = "./data/hk_bought_stocks_20180101_now.csv"
+    logger.debug(f"加载数据文件文件:{file_name}")
+    df = pd.read_csv(file_name, dtype={'code': str})  # code列要转成str，没有这个列系统会自动忽略
+    df['date'] = pd.to_datetime(df.date.apply(str), format='%Y-%m-%d')
+    df['code'] = df.code.str[:6] #
+    df = df.set_index('date')
+    df = df.sort_index()
+    return df
+
+
 def load_hsgt_top10():
     df = load('hsgt_top10', __load_hsgt_top10)
     df['date'] = pd.to_datetime(df.date.apply(str), format='%Y-%m-%d')
@@ -140,6 +158,7 @@ def __load_hsgt_top10():
     df['code'] = df.code.str[:6] # 遵从简化原则，不保留市场代码：600601.SH => 600601
     df.rename(columns={'trade_date': 'date', 'trade_code': 'code'}, inplace=True)
     return df
+
 
 
 def load_moneyflow_hsgt():
