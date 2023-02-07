@@ -93,7 +93,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-s', '--start', type=str, help="开始日期")
     parser.add_argument('-e', '--end', type=str, help="结束日期")
-    parser.add_argument('-c', '--code', type=str, help="code")
+    parser.add_argument('-c', '--code', type=str, help="股票代码，需要后缀名(SZ|SH)")
     args = parser.parse_args()
 
     main(str2date(args.start),

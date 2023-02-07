@@ -71,6 +71,7 @@ class TripleStrategy(Strategy):
         else:
             raise ValueError(params.rsrs_type)
 
+        # print("=====>",score, upper_threshold, lower_threshold)
         return score, upper_threshold, lower_threshold
 
     def next(self, today, trade_date):
@@ -120,7 +121,7 @@ class TripleStrategy(Strategy):
                 if code in self.broker.positions.keys():
                     logger.debug("[%s] 已经在持仓中，检查是否需要卖出", code)
                     if score < lower_threshold:
-                        logger.debug("[%s] 持仓中，%s[%.1f] < 下阈值[%1.f]，清仓！",
+                        logger.debug("[%s] 持仓中，%s[%.5f] < 下阈值[%.5f]，清仓！",
                                      code,
                                      self.params.rsrs_type,
                                      score,
@@ -128,7 +129,7 @@ class TripleStrategy(Strategy):
                         self.broker.sell_out(code, trade_date)
                         logger.debug('[%r] 挂买单，股票[%s]/目标日期[%s]', date2str(today), code, date2str(trade_date))
                     else:
-                        logger.debug("[%s] 持仓中，%s[%.1f] > 下阈值[%1.f]，继续持有",
+                        logger.debug("[%s] 持仓中，%s[%.5f] > 下阈值[%.5f]，继续持有",
                                      code,
                                      self.params.rsrs_type,
                                      score,
@@ -136,7 +137,7 @@ class TripleStrategy(Strategy):
 
                 else:
                     if score > upper_threshold:
-                        logger.debug("[%s] 未持仓，%s[%.1f] > 阈值[%1.f]，买入！",
+                        logger.debug("[%s] 未持仓，%s[%.5f] > 阈值[%.5f]，买入！",
                                      code,
                                      self.params.rsrs_type,
                                      score,
@@ -248,7 +249,7 @@ class TripleStrategy(Strategy):
         df.close.rolling(window=self.params.N).apply(clac_rsrs, raw=False)
         logger.debug("计算了[%s]的[%d]天的beta和r2值", df.iloc[0].code, self.params.N)
 
-        # 再计算250天窗口期的移动平均值
+        # 再计算600天窗口期的移动平均值
         df.beta.rolling(window=self.params.M).apply(clac_adjust_zscore, raw=False)
         logger.debug("计算了[%s]的[%d]天beta值的移动平均值", df.iloc[0].code, self.params.M)
 
