@@ -10,9 +10,9 @@ from utils.utils import date2str, calc_size
 
 logger = logging.getLogger(__name__)
 
-# commission = 0.002  # 印花税 1‰(千1) + 过户费0.02‰(万0.2) + 券商交易佣金0.25‰(万2.5)
-BUY_COMMISSION_RATE = 0.002  # 买入手续费1.5%
-SELL_COMMISSION_RATE = 0.000  # 卖出手续费0.5%
+# https://www.163.com/dy/article/G8CH07ON0539AGEJ.html
+BUY_COMMISSION_RATE = 0.0002 + 0.001 + 0.00002  # 券商佣金万2 + 印花税千1 + 过户费万0.2
+SELL_COMMISSION_RATE = 0.0002 + 0.00002  # 券商佣金万2 + 过户费万0.2
 
 
 def next_trade_day(date, df_calendar):
