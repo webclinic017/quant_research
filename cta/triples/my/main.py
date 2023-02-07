@@ -24,7 +24,7 @@ def backtest(df_baseline: DataFrame, df_dict, params):
     # banker = Banker()
     banker = None
     broker = Broker(params.amount, banker)
-    broker.set_buy_commission_rate(0.0001)  # 参考华宝证券：ETF手续费万1，单笔最低0.2元
+    broker.set_buy_commission_rate(0.0002)
     broker.set_sell_commission_rate(0)
     backtester = BackTester(broker, params.start_date, params.end_date, buy_day='tomorrow')
     strategy = TripleStrategy(broker, params)

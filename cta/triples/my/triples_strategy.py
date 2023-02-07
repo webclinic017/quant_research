@@ -27,19 +27,18 @@ class TripleStrategy(Strategy):
         https://tushare.pro/document/2?doc_id=47
         north_money	float	北向资金（百万元）
         south_money	float	南向资金（百万元）
+           trade_date  ggt_ss  ggt_sz      hgt      sgt  north_money  south_money
+        0    20180808  -476.0  -188.0   962.68   799.94      1762.62       -664.0
+        1    20180807  -261.0   177.0  2140.85  1079.82      3220.67        -84.0        
         
         中轨线 = 90日的移动平均线（SMA)
         上轨线 = 90日的SMA +（90日的标准差 x 2）
         下轨线 = 90日的SMA -（90日的标准差 x 2）
         """
         df_flow = df_dict['moneyflow']
-        df_flow['net_amount'] = df_flow.north_money - df_flow.south_money
         # 不能用talib，因为中间有一些na，会导致它全都变成na了，用dataframe.rolling替代
-        # df_flow['_mid'] = talib.SMA(df_flow.net_amount, timeperiod=self.params.bolling_period)
-        df_flow['_mid'] = df_flow.net_amount.rolling(window=self.params.bolling_period, min_periods=1).mean()
-        # df_flow['_std'] = talib.STDDEV(df_flow.net_amount, timeperiod=self.params.bolling_period, nbdev=1)
-        df_flow['_std'] = df_flow.net_amount.rolling(window=self.params.bolling_period, min_periods=1).std()
-
+        df_flow['_mid'] = df_flow.north_money.rolling(window=self.params.bolling_period, min_periods=1).mean()
+        df_flow['_std'] = df_flow.north_money.rolling(window=self.params.bolling_period, min_periods=1).std()
         df_flow['upper'] = df_flow._mid + self.params.bolling_std * df_flow._std
         df_flow['lower'] = df_flow._mid - self.params.bolling_std * df_flow._std
         self.df_flow = df_flow
@@ -80,16 +79,16 @@ class TripleStrategy(Strategy):
         s_flow = self.get_value(self.df_flow, index_key=today)
         if s_flow is None: return False
 
-        net_amount = s_flow.net_amount
+        north_money = s_flow.north_money
         upper = s_flow.upper
         lower = s_flow.lower
 
-        # logger.debug("指标：净值[%.1f],上轨[%.1f],下轨[%.1f]",net_amount,upper,lower)
+        # logger.debug("指标：净值[%.1f],上轨[%.1f],下轨[%.1f]",north_money,upper,lower)
 
         b_trade = False
         # 根据北上资金的净流入的布林通道开仓
-        if net_amount > upper:
-            logger.debug('[%s] 北上资金流入净值[%.1f] > 布林上轨[%.1f]，开仓：', date2str(today), net_amount, upper)
+        if north_money > upper:
+            logger.debug('[%s] 北上资金流入净值[%.1f] > 布林上轨[%.1f]，开仓：', date2str(today), north_money, upper)
 
             # 获得今日的10大净流入股票，因为有沪市top10+深市top10，所有有20只
             df_today_stocks = self.get_value(self.df_stock_pool, today)
@@ -97,8 +96,8 @@ class TripleStrategy(Strategy):
                 logger.warning('今日[%s]没有流入股票', date2str(today))
                 return False
             # 按照净值流入从大到小排列（原作者是按照买入股份数，我没这个数据，用净流入资金更实在）
-            if self.params.stock_select == 'by_net_amount':
-                df_today_stocks = df_today_stocks.sort_values(by='net_amount', ascending=False)
+            if self.params.stock_select == 'by_north_money':
+                df_today_stocks = df_today_stocks.sort_values(by='north_money', ascending=False)
             else:
                 df_today_stocks = df_today_stocks.sort_values(by='share_ratio', ascending=False)
             df_today_stocks = df_today_stocks.iloc[self.params.top10_scope[0]:self.params.top10_scope[1]]
@@ -154,11 +153,11 @@ class TripleStrategy(Strategy):
             self.df_position = self.df_position.append({
                 'date': today,
                 'position': 'open',  # 开仓
-                'net_amount': net_amount}, ignore_index=True)
+                'north_money': north_money}, ignore_index=True)
 
         # 清仓
-        if net_amount < lower:
-            logger.debug('[%s] 北上资金流入净值[%.1f] < 布林下轨[%.1f]，全部清仓！', date2str(today), net_amount, lower)
+        if north_money < lower:
+            logger.debug('[%s] 北上资金流入净值[%.1f] < 布林下轨[%.1f]，全部清仓！', date2str(today), north_money, lower)
             for code, position in self.broker.positions.items():
                 if position.position == 0: continue
 
@@ -169,7 +168,7 @@ class TripleStrategy(Strategy):
             self.df_position = self.df_position.append({
                 'date': today,
                 'position': 'close',  # 开仓
-                'net_amount': net_amount}, ignore_index=True)
+                'north_money': north_money}, ignore_index=True)
 
         return b_trade
     def calculte_stock_rsrs(self, code):

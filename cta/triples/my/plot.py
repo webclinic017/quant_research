@@ -80,13 +80,13 @@ def plot(start_date, end_date, broker, df_baseline, df_portfolio, df_dict, df_st
     ax_moneyflow = ax_baseline.twinx()  # 返回共享x轴的第3个轴
     ax_moneyflow.set_ylabel('北上资金', color='r')  # 设置Y轴标题
     ax_moneyflow.spines['right'].set_position(('outward', 120))  # right, left, top, bottom
-    h_moneyflow, = ax_moneyflow.plot(df_moneyflow.index, df_moneyflow.net_amount, 'r')
+    h_moneyflow, = ax_moneyflow.plot(df_moneyflow.index, df_moneyflow.north_money, 'r')
     # 画开仓信号
     df_open = df_moneyflow_position[df_moneyflow_position.position == 'open']
-    ax_moneyflow.scatter(df_open.date, df_open.net_amount, marker='^', c='r', s=40)
+    ax_moneyflow.scatter(df_open.date, df_open.north_money, marker='^', c='r', s=40)
     # 画清仓信号
     df_close = df_moneyflow_position[df_moneyflow_position.position == 'close']
-    ax_moneyflow.scatter(df_close.date, df_close.net_amount, marker='v', c='g', s=40)
+    ax_moneyflow.scatter(df_close.date, df_close.north_money, marker='v', c='g', s=40)
     # 画出北上资金上下规定的边界区域
     ax_moneyflow.fill_between(df_moneyflow.index, df_moneyflow.upper, df_moneyflow.lower, alpha=0.2)
     # 画图例
