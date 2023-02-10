@@ -50,7 +50,7 @@ def run(code, start_date, end_date, ma, quantiles, years, roll_months, cores):
     """
     测试和优化方案：
     测试周期：  2013.1~2023.1（10年）
-    测试窗口    2年、3年、5年
+    测试窗口    2年、3年、4年、5年
     滚动窗口    3个月，每年4个月
     测试数量：  8x4+7x4+5x4= 32+28+20 = 80个测试（ 剩余年数 * 年移动4次）
     """
@@ -71,6 +71,9 @@ def run(code, start_date, end_date, ma, quantiles, years, roll_months, cores):
             quantiles=quantiles)
     df = pd.concat(results)
     df.to_csv(f"debug/{code}_{start_date}_{end_date}_{years}_{roll_months}.csv")
+
+    # 4只基金，一起跑，2013~2015，56秒
+    # 16个工作进程运行完毕，处理[83]条数据，耗时: 0 分 21 秒
     logger.debug("research1耗时: %s ", str(datetime.timedelta(seconds=time.time() - start_time)))
 
     return df
@@ -95,7 +98,7 @@ if __name__ == '__main__':
     parser.add_argument('-e', '--end_date', type=str, default="20230101", help="结束日期")
     parser.add_argument('-cs', '--cores', type=int, default=10)
     parser.add_argument('-c', '--code', type=str, help="股票代码")
-    parser.add_argument('-y', '--years', type=str, default='2,3,5', help="测试年份")
+    parser.add_argument('-y', '--years', type=str, default='2,3,4,5', help="测试年份")
     parser.add_argument('-r', '--roll', type=int, default=3, help="滚动月份")
     parser.add_argument('-m', '--ma', type=int, default=850)
     parser.add_argument('-q', '--quantile', type=str, default='0.2,0.8')

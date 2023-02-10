@@ -1,5 +1,7 @@
 import argparse
 import logging
+import time
+import datetime
 
 from pandas import DataFrame
 from tabulate import tabulate
@@ -133,9 +135,9 @@ def main(args):
 
 
 """
-python -m dingtou.pyramid_v2.pyramid_v2 -c 510500,510330,159915,588090 -s 20130101 -e 20230101 -b sh000001 -a 0 -m 850 -ga 1000 -gh 0.01 -qp 0.6 -qn 0.4 -bk
+python -m dingtou.pyramid_v2.pyramid_v2 -c 510500,510330,159915,588090 -s 20180101 -e 20230101 -b sh000001 -a 0 -m 850 -ga 1000 -gh 0.01 -qp 0.6 -qn 0.4 -bk
 
-python -m dingtou.pyramid_v2.pyramid_v2 -c 588090 -s 20130101 -e 20230101 -b sh000001 -a 200000 -m 480 -ga 1000 -gh 0.01 -qp 0.8 -qn 0.4 -bk
+python -m dingtou.pyramid_v2.pyramid_v2 -c 588090 -s 20160101 -e 20230101 -b sh000001 -a 200000 -m 480 -ga 1000 -gh 0.01 -qp 0.8 -qn 0.4 -bk
 """
 if __name__ == '__main__':
     utils.init_logger(file=True)
@@ -157,4 +159,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
     print(args)
     logger.info(args)
+
+    start_time = time.time()
     main(args)
+    logger.debug("research1耗时: %s ", str(datetime.timedelta(seconds=time.time() - start_time)))

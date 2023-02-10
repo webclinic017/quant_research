@@ -29,9 +29,12 @@ MAs = [240, 480, 850, -240, -480]
 """
 quantiles = 10x10 = 100
 mas = 5
-4只基金一次回测：7 s
-合计：5x100x7 = 3500 s
-16核一起跑：3500/16 = 218 s = 4 minutes
+跑一个回测4秒，
+按照2013~2023，,2、3、4、5年
+合计：5x100 = 500
+4只基金一次回测：56 s
+合计：5x100x56 = 28000 s
+16核一起跑：28000/3600 = 7.7 hours
 """
 
 def main(code, start_date, end_date, years, roll_months, cores):
@@ -40,6 +43,7 @@ def main(code, start_date, end_date, years, roll_months, cores):
 
     i = 1
     for q in quantiles:
+        start = time.time()
         for ma in MAs:
             df_result = run(code, start_date, end_date, ma, q, years, roll_months, cores)
             df_result['负收益分位数'] = q[0]
@@ -48,6 +52,7 @@ def main(code, start_date, end_date, years, roll_months, cores):
             dfs.append(df_result)
             pbar.update(i)
             i+= 1
+        logger.debug("完成组合 %r + %d 耗时：%s",q,ma,str(datetime.timedelta(seconds=time.time() - start)))
     df = pd.concat(dfs)
     df.to_csv(f"debug/{code}_{start_date}_{end_date}_{years}_{roll_months}_quantiles.csv")
 
@@ -61,7 +66,7 @@ if __name__ == '__main__':
     parser.add_argument('-e', '--end_date', type=str, default="20230101", help="结束日期")
     parser.add_argument('-cs', '--cores', type=int, default=5)
     parser.add_argument('-c', '--code', type=str, help="股票代码")
-    parser.add_argument('-y', '--years', type=str, default='2,3,5', help="测试年份")
+    parser.add_argument('-y', '--years', type=str, default='1,2,3,4,5', help="测试年份")
     parser.add_argument('-r', '--roll', type=int, default=3, help="滚动月份")
     args = parser.parse_args()
 
