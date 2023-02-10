@@ -1,8 +1,9 @@
 import logging
 
-from dingtou.utils.utils import str2date, date2str
+from utils.utils import str2date, date2str
 
 logger = logging.getLogger(__name__)
+
 
 class BackTester():
     """
@@ -20,7 +21,7 @@ class BackTester():
         # 交易代理商
         self.broker = broker
 
-        if type(start_date)==str: start_date = str2date(start_date)
+        if type(start_date) == str: start_date = str2date(start_date)
         if type(end_date) == str: end_date = str2date(end_date)
         self.start_date = start_date
         self.end_date = end_date
@@ -33,7 +34,7 @@ class BackTester():
     def set_strategy(self, s):
         self.strategy = s
 
-    def set_data(self, df_baseline, funds_dict: dict):
+    def set_data(self, funds_dict: dict, df_baseline: dict):
         """
         data是一个dict，你爱搁啥就啥，
         虽然是一个字典，但是都要求有date一个字段，会按照这个日期字段对齐，并且设为索引
@@ -57,8 +58,8 @@ class BackTester():
         self.dates = sorted(self.dates)
 
         # 把数据传递给broker和策略
-        self.strategy.set_data(self.df_baseline, self.fund_dict)
-        self.broker.set_data(self.df_baseline, self.fund_dict)
+        self.strategy.set_data(self.fund_dict, self.df_baseline)
+        self.broker.set_data(self.fund_dict, self.df_baseline)
 
     def run(self):
         """
@@ -74,14 +75,17 @@ class BackTester():
             # 触发当日的策略执行
             if i == len(self.dates) - 1: continue  # 防止越界
             # 是当天价来交易，还是以下一个交易日来交易
-            trade_day = today if self.buy_day=='today' else self.dates[i + 1]
+            trade_day = today if self.buy_day == 'today' else self.dates[i + 1]
 
-            # 触发交易代理的执行，这里才会真正的执行交易
-            # bugfix:2023.1,必须要在next之前运行
-            self.broker.run(today)
+
+            # 触发交易代理的执行，这里才会真正的执行交易，这个要在策略之前做，非常重要！
+            # bugfix:2023.1,必须要在next之前运行，因为股票会挂第二天的单，所以一天开始，手下要先做交易，然后再回测策略
+            result1 = self.broker.run(today)
 
             # 这里会产生买单和卖单
-            self.strategy.next(today=today, trade_date=trade_day)
+            result2 = self.strategy.next(today=today, trade_date=trade_day)
+
+            if result1 or result2:
+                logger.debug("[%s end] %s",date2str(today), '-'*80)
 
             # logger.debug("[%s]日的回测结束了...",date2str(today))
-            # logger.debug("-"*80)

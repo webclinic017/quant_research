@@ -38,10 +38,10 @@ def backtest(data, code, ma, quantiles, result):
         args.ma = ma
         args.code = code
         args.grid_height = 0.01  # 格子高度1%
-        args.grid_share = 1000  # 基准是1000份
+        args.grid_amount = 1000  # 1个格子是1000元
         args.quantile_negative = quantiles[0]
         args.quantile_positive = quantiles[1]
-        args.bank = True
+        args.bank = True # 使用借款方法
         df = main(args)
         result.append(df)  # 把结果append到数组里
 
@@ -54,6 +54,7 @@ def run(code, start_date, end_date, ma, quantiles, years, roll_months, cores):
     滚动窗口    3个月，每年4个月
     测试数量：  8x4+7x4+5x4= 32+28+20 = 80个测试（ 剩余年数 * 年移动4次）
     """
+    start_time = time.time()
 
     # 从2013~2015年，每隔3个月，向后滚动2、3、5年的一个周期
     ranges = []
@@ -70,10 +71,20 @@ def run(code, start_date, end_date, ma, quantiles, years, roll_months, cores):
             quantiles=quantiles)
     df = pd.concat(results)
     df.to_csv(f"debug/{code}_{start_date}_{end_date}_{years}_{roll_months}.csv")
+    logger.debug("research1耗时: %s ", str(datetime.timedelta(seconds=time.time() - start_time)))
+
     return df
 
 # python -m dingtou.pyramid_v2.research1 -c 510500 -s 20130101 -e 20230101 -cs 16  -m 850 -q 0.2,0.8
 # python -m dingtou.pyramid_v2.research1 -c 510310,510500,159915,588090 -s 20130101 -e 20230101 -cs 16
+"""
+我精心挑出来的各行业、指数的ETF，17个
+python -m dingtou.pyramid_v2.research1 \
+    -c 510330,510500,159915,588090,512880,512200,512660,512010,512800,512690,510810,512980,512760,159928,515000,516160,512580 \
+    -s 20130101 \
+    -e 20230101 \
+    -cs 16
+"""
 
 # 本地测试用
 # python -m dingtou.pyramid_v2.research1 -c 510500 -s 20180101 -e 20210101 -y 2 -r 6 -cs 2 -m 850 -q 0.2,0.8
@@ -90,7 +101,7 @@ if __name__ == '__main__':
     parser.add_argument('-q', '--quantile', type=str, default='0.2,0.8')
     args = parser.parse_args()
 
-    start_time = time.time()
+
     run(args.code,
         args.start_date,
         args.end_date,
@@ -100,4 +111,3 @@ if __name__ == '__main__':
         args.roll,
         args.cores)
 
-    logger.debug("耗时: %s ", str(datetime.timedelta(seconds=time.time() - start_time)))

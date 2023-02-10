@@ -1,23 +1,38 @@
 import datetime
+import functools
 import json
-import pickle
-
-import numpy as np
 import logging
+import math
 import os
 import time
-import functools
+import calendar
 
 import dask
+import numpy as np
+import statsmodels.api as sm
+import yaml
+from backtrader_plotting.schemes import Tradimo
 from dask import compute, delayed
 from dateutil.relativedelta import relativedelta
 
 logger = logging.getLogger(__name__)
 
+
 class AttributeDict(dict):
     __getattr__ = dict.__getitem__
     __setattr__ = dict.__setitem__
     __delattr__ = dict.__delitem__
+
+
+def load_config(path='./conf/config.yml'):
+    if not os.path.exists(path):
+        raise ValueError("配置文件[conf/config.yml]不存在!")
+    f = open(path, 'r', encoding='utf-8')
+    result = f.read()
+    # 转换成字典读出来
+    data = yaml.load(result, Loader=yaml.FullLoader)
+    logger.info("读取配置文件:%s", path)
+    return data
 
 
 def get_value(df, key):
@@ -139,7 +154,6 @@ def init_logger(file=False, simple=False, log_level=logging.DEBUG):
             if type(t) == cls: return True
         return False
 
-
     # 加入控制台
     if not is_any_handler(root_logger.handlers, logging.StreamHandler):
         stream_handler = logging.StreamHandler()
@@ -159,13 +173,15 @@ def init_logger(file=False, simple=False, log_level=logging.DEBUG):
         handler.setLevel(level=log_level)
         handler.setFormatter(formatter)
 
-def serialize(obj,file_path):
+
+def serialize(obj, file_path):
     # pickle是二进制的，不喜欢，改成json序列化了
     # f = open(file_path, 'wb')
     # pickle.dump(obj, f)
     # f.close()
     with open(file_path, "w") as f:
         json.dump(obj, f, indent=2)
+
 
 def unserialize(file_path):
     # f = open(file_path, 'rb')
@@ -174,6 +190,7 @@ def unserialize(file_path):
     with open(file_path, 'r') as f:
         obj = json.load(f)
     return obj
+
 
 def __calc_OHLC_in_group(df_in_group):
     """
@@ -232,7 +249,7 @@ def parallel_run(core_num, iterable, func, *args, **kwargs):
         64
         # 偏函数partial：https://www.liaoxuefeng.com/wiki/1016959663602400/1017454145929440
         """
-        logger.debug("使用%d个并行，运行函数%s,参数：%r;%r",core_num,func.__name__,args,kwargs)
+        logger.debug("使用%d个并行，运行函数%s,参数：%r;%r", core_num, func.__name__, args, kwargs)
         func_partial = functools.partial(func, *args, **kwargs)
 
         # dask：https://juejin.cn/post/7083079485230153764
@@ -242,3 +259,117 @@ def parallel_run(core_num, iterable, func, *args, **kwargs):
         client = Client(asynchronous=True, n_workers=4, threads_per_worker=2)
 
         return result
+
+
+class AStockPlotScheme(Tradimo):
+    """
+    自定义的bar和volumn的显示颜色，follow A股风格
+    """
+
+    def _set_params(self):
+        super()._set_params()
+        self.barup = "#FC5D45"
+        self.bardown = "#009900"
+        self.barup_wick = self.barup
+        self.bardown_wick = self.bardown
+        self.barup_outline = self.barup
+        self.bardown_outline = self.bardown
+        self.volup = self.barup
+        self.voldown = self.bardown
+
+
+def calc_size(cash, price, commission_rate):
+    """
+    用来计算可以购买的股数：
+    1、刨除手续费
+    2、要是100的整数倍
+    为了保守起见，用涨停价格来买，这样可能会少买一些。
+    之前我用当天的close价格来算size，如果不打富余，第二天价格上涨一些，都会导致购买失败。
+    """
+
+    # 按照一个保守价格来买入
+    size = math.ceil(cash * (1 - commission_rate) / price)
+
+    # 要是100的整数倍
+    size = (size // 100) * 100
+    return size
+
+
+def OLS(X, y):
+    """
+    做线性回归，返回 β0（截距）、β1（系数）和残差
+    参考：https://blog.csdn.net/chongminglun/article/details/104242342
+    :param X: shape(N,M)，M位X的维度，一般M=1
+    :param y: shape(N)
+    :return:参数[β0、β1]，R2
+    """
+    assert not np.isnan(X).any(), f'X序列包含nan:{X}'
+    assert not np.isnan(y).any(), f'y序列包含nan:{y}'
+
+    # 增加一个截距项
+    X = sm.add_constant(X)
+    # 定义模型
+    model = sm.OLS(y, X)  # 定义x，y
+    results = model.fit()
+    # 参数[β0、β1]，R2
+    return results.params, results.rsquared
+
+def load_params(name='params.yml'):
+    if not os.path.exists(name):
+        raise ValueError(f"参数文件[{name}]不存在，请检查路径")
+    params = yaml.load(open(name,'r',encoding='utf-8'),Loader=yaml.FullLoader)
+    params = AttributeDict(params.items())
+    return params
+
+def get_monthly_duration(start_date, end_date):
+    """
+    把开始日期到结束日期，分割成每月的信息
+    比如20210301~20220515 =>
+    [   [20210301,20210331],
+        [20210401,20210430],
+        ...,
+        [20220401,20220430],
+        [20220501,20220515]
+    ]
+    """
+
+    start_date = str2date(start_date)
+    end_date = str2date(end_date)
+    years = list(range(start_date.year, end_date.year + 1))
+    scopes = []
+    for year in years:
+        if start_date.year == year:
+            start_month = start_date.month
+        else:
+            start_month = 1
+
+        if end_date.year == year:
+            end_month = end_date.month + 1
+        else:
+            end_month = 12 + 1
+
+        for month in range(start_month, end_month):
+
+            if start_date.year == year and start_date.month == month:
+                s_start_date = date2str(datetime.date(year=year, month=month, day=start_date.day))
+            else:
+                s_start_date = date2str(datetime.date(year=year, month=month, day=1))
+
+            if end_date.year == year and end_date.month == month:
+                s_end_date = date2str(datetime.date(year=year, month=month, day=end_date.day))
+            else:
+                _, last_day = calendar.monthrange(year, month)
+                s_end_date = date2str(datetime.date(year=year, month=month, day=last_day))
+
+            scopes.append([s_start_date, s_end_date])
+
+    return scopes
+
+# python -m utils.utils
+if __name__ == '__main__':
+    p = load_params('triples/params.yml')
+    print(p)
+    print(p.start_date)
+
+    p = get_monthly_duration('20140101','20230201')
+    print(p)

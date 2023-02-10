@@ -82,7 +82,11 @@ def main(least,start_date, end_date, years, roll_months, cores):
     df_result['移动均值'] = 850
     df_result.to_csv(f"debug/etfilter_{start_date}_{end_date}_{years}_{roll_months}.csv")
 
+# 本地测试
 # python -m dingtou.pyramid_v2.research4 -s 20210101 -e 20230101 -y 2 -cs 4 -l 12
+
+# 生产，上市3年以上的etf，142只，一起跑
+# python -m dingtou.pyramid_v2.research4 -s 20130101 -e 20230101 -y 2 -cs 16 -l 3
 if __name__ == '__main__':
     utils.init_logger(file=True)
     parser = argparse.ArgumentParser()
@@ -90,7 +94,7 @@ if __name__ == '__main__':
     parser.add_argument('-e', '--end_date', type=str, default="20230101", help="结束日期")
     parser.add_argument('-cs', '--cores', type=int, default=5)
     parser.add_argument('-y', '--years', type=str, default='2,3,5', help="测试年份")
-    parser.add_argument('-l', '--least', type=int, default=1, help="测试年份")
+    parser.add_argument('-l', '--least', type=int, default=1, help="至少上市年份")
     parser.add_argument('-r', '--roll', type=int, default=3, help="滚动月份")
     args = parser.parse_args()
 

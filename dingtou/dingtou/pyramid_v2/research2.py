@@ -7,9 +7,9 @@ import pandas as pd
 
 from dingtou.pyramid_v2.research1 import run
 from dingtou.utils import utils
-
+import itertools
+from tqdm import tqdm
 logger = logging.getLogger(__name__)
-
 """
 research1基础上，做参数调优
 需要调参的参数包括：
@@ -18,28 +18,42 @@ research1基础上，做参数调优
     [0.2,0.5],[0.2,0.6],[0.2,0.8],
     [0.4,0.5],[0.4,0.6],[0.4,0.8],
 """
+native_quantiles = [0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9]
+positive_quantiles = [0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9]
 
-quantiles = [
-    [0.2, 0.5], [0.2, 0.6], [0.2, 0.8],
-    [0.4, 0.5], [0.4, 0.6], [0.4, 0.8]
-]
-MA = 850
+quantiles = list(itertools.product(*[native_quantiles,positive_quantiles]))
 
+MAs = [240, 480, 850, -240, -480]
+
+
+"""
+quantiles = 10x10 = 100
+mas = 5
+4只基金一次回测：7 s
+合计：5x100x7 = 3500 s
+16核一起跑：3500/16 = 218 s = 4 minutes
+"""
 
 def main(code, start_date, end_date, years, roll_months, cores):
     dfs = []
+    pbar = tqdm(total=len(quantiles)*len(MAs))
+
+    i = 1
     for q in quantiles:
-        df_result = run(code, start_date, end_date, MA, q, years, roll_months, cores)
-        df_result['负收益分位数'] = q[0]
-        df_result['正收益分位数'] = q[1]
-        df_result['移动均值'] = MA
-        dfs.append(df_result)
+        for ma in MAs:
+            df_result = run(code, start_date, end_date, ma, q, years, roll_months, cores)
+            df_result['负收益分位数'] = q[0]
+            df_result['正收益分位数'] = q[1]
+            df_result['移动均值'] = ma
+            dfs.append(df_result)
+            pbar.update(i)
+            i+= 1
     df = pd.concat(dfs)
     df.to_csv(f"debug/{code}_{start_date}_{end_date}_{years}_{roll_months}_quantiles.csv")
 
 
 # python -m dingtou.pyramid_v2.research2 -c 510310,510500,159915,588090 -s 20130101 -e 20230101 -cs 16
-# python -m dingtou.pyramid_v2.research2 -c 510500 -s 20180101 -e 20210101 -y 2 -r 6 -cs 2
+# python -m dingtou.pyramid_v2.research2 -c 510310,510500,159915,588090 -s 20180101 -e 20210101 -y 2 -r 6 -cs 2
 if __name__ == '__main__':
     utils.init_logger(file=True)
     parser = argparse.ArgumentParser()
