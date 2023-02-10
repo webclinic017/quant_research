@@ -44,21 +44,23 @@ class PyramidV2Strategy(Strategy):
     >根据我的算法交易给出的误差，去券商那调整网格参数或者人工买入卖出做份额调整。
     >这样能兼顾密集自动交易和少量人工交易修正。
 
+
+.grid_height,
+                                 args.quantile_positive,
+                                 args.quantile_negative,
+                                 args.ma,
+                                 args.end_date
     """
 
     def __init__(self,
                  broker,
-                 policy,
-                 grid_height,
-                 quantile_positive,
-                 quantile_negative,
-                 ma_days, end_date,
+                 args,
                  last_grid_position_file_path=None):
         super().__init__(broker, None)
-        self.grid_height = grid_height  # 上涨时候网格高度，百分比，如0.008
-        self.quantile_positive = quantile_positive
-        self.quantile_negative = quantile_negative
-        self.policy = policy
+        self.grid_height = args.grid_height  # 上涨时候网格高度，百分比，如0.008
+        self.quantile_positive = args.quantile_positive
+        self.quantile_negative = args.quantile_negative
+        self.grid_amount = args.grid_amount
 
         if last_grid_position_file_path and os.path.exists(last_grid_position_file_path):
             logger.debug("存在最后的网格位置文件，加载它：%s", last_grid_position_file_path)
@@ -70,9 +72,9 @@ class PyramidV2Strategy(Strategy):
         self.positive_threshold_dict = {}
         self.negative_threshold_dict = {}
 
-        self.ma_days = ma_days
+        self.ma_days = args.ma
 
-        if type(end_date) == str: end_date = utils.str2date(end_date)
+        if type(args.end_date) == str: end_date = utils.str2date(args.end_date)
         self.end_date = end_date
 
 
@@ -151,8 +153,8 @@ class PyramidV2Strategy(Strategy):
         :return:
         """
         s_daily_fund = get_value(df_daily_fund, today)
-        if s_daily_fund is None: return None,None
-        if pd.isna(s_daily_fund.diff_percent_close2ma): return None,None
+        if s_daily_fund is None: return None,None,None
+        if pd.isna(s_daily_fund.diff_percent_close2ma): return None,None,None
         return s_daily_fund.diff_percent_close2ma, s_daily_fund.close, s_daily_fund.ma
 
     def handle_one_fund(self, code, today, price, ma, diff2last):
@@ -172,7 +174,7 @@ class PyramidV2Strategy(Strategy):
         last_grid_position = 0 if self.last_grid_position_dict.get(code,None) is None else self.last_grid_position_dict[code]
 
         if current_grid_position == last_grid_position:
-            logger.debug("[%s]%s 当前格子没有变化： 第%d个格子",date2str(today),code,current_grid_position)
+            logger.debug("[%s] %s 当前格子没有变化： 第%d个格子",date2str(today),code,current_grid_position)
             return None # 在同一个格子，啥也不干
 
 
@@ -182,16 +184,15 @@ class PyramidV2Strategy(Strategy):
         但是如果没有记录，说明是第一次买入，我本来计划判断是在下跌趋势（就是目前价格是10个交易日内最低），
         但是后来觉得没有必要，因为只要是在这个点位就是我要购入的点位，不管他上涨还是下跌，直到他趋势反转再跌下来，我才会再买。
         """
+        amount = self.grid_amount * abs(current_grid_position)
+
         if current_grid_position < 0 and \
                 current_grid_position < last_grid_position and \
                 current_grid_position < self.negative_threshold_dict[code]:
             # 根据偏离均线幅度，决定购买的份数
-            amount = self.policy.calculate(price,current_grid_position, 'buy')
             # 买入
-            if self.broker.buy(code,
-                               today,
-                               amount=amount):
-                msg = "[%s] %s当前价格[%.2f]，距离均线[%.2f]，距离百分比[%.1f%%]，距离[%d]格,低于上次[第%d格],买入%.1f元  基<---钱" % (
+            if self.broker.buy(code,today,amount=amount):
+                msg = "[%s] %s当前价格[%.4f]，距离均线[%.4f]，距离百分比[%.1f%%]，距离[%d]格,低于上次[第%d格],买入%.1f元  基<---钱" % (
                              date2str(today),
                              code,
                              price,
@@ -215,10 +216,10 @@ class PyramidV2Strategy(Strategy):
         if current_grid_position > last_grid_position and \
                 current_grid_position > 0 and \
                 current_grid_position > self.positive_threshold_dict[code]:
-            amount = self.policy.calculate(price, current_grid_position, 'sell')
+
             # 扣除手续费后，下取整算购买份数
-            if self.broker.sell(code, today, amount=amount):
-                msg = "[%s] %s当前价格[%.2f],距离均线[%.2f],距离百分比[%.1f%%],距离[%d]格,高于上次[第%d格],卖出%.1f元  基===>钱" % (
+            if self.broker.sell(code, today, amount=amount*2):
+                msg = "[%s] %s当前价格[%.4f],距离均线[%.4f],距离百分比[%.1f%%],距离[%d]格,高于上次[第%d格],卖出%.1f元  基===>钱" % (
                         date2str(today),
                         code,
                         price,
@@ -235,11 +236,12 @@ class PyramidV2Strategy(Strategy):
                     serialize(self.last_grid_position_dict,self.last_grid_position_file_path)
                 return msg
 
-        logger.debug("未触发交易: %s 差异[%.4f],当前格[%d],上次格[%d],正阈值格[%d],负阈值格[%d]",
-                     code,
-                     diff2last,
-                     current_grid_position,
-                     last_grid_position,
-                     self.positive_threshold_dict[code],
-                     self.negative_threshold_dict[code])
+        # logger.debug("[%s] 未触发交易: %s 差异[%.4f],当前格[%d],上次格[%d],正阈值格[%d],负阈值格[%d]",
+        #              date2str(today),
+        #              code,
+        #              diff2last,
+        #              current_grid_position,
+        #              last_grid_position,
+        #              self.positive_threshold_dict[code],
+        #              self.negative_threshold_dict[code])
         return None

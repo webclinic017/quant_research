@@ -225,6 +225,7 @@ class Broker:
 
         # 更新仓位,头寸,交易历史
         self.trades.remove(trade)
+        if trade.position is None: trade.position = position
         self.add_trade_history(trade, today, price)
 
         # 创建，或者，更新持仓
@@ -317,7 +318,7 @@ class Broker:
             return False
 
         if self.positions[code].position == 0:
-            logger.warning("[%s]创建卖单失败，[%s]仓位为0", date2str(date), code)
+            # logger.warning("[%s]创建卖单失败，[%s]仓位为0", date2str(date), code)
             return False
 
         if position and position > self.positions[code].position:
@@ -414,7 +415,10 @@ class Broker:
         # 更新当天市值
         if price==0:
             # 如果当天没有价格，就使用前一日的市场价值做为最新
-            fund_position_value = self.fund_market_dict[fund_code].iloc[-1].position_value
+            if self.fund_market_dict.get(fund_code,None) is None:
+                fund_position_value = 0
+            else:
+                fund_position_value = self.fund_market_dict[fund_code].iloc[-1].position_value
         else:
             fund_position_value = self.positions[fund_code].position * price
 

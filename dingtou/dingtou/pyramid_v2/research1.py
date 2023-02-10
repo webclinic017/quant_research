@@ -38,10 +38,10 @@ def backtest(data, code, ma, quantiles, result):
         args.ma = ma
         args.code = code
         args.grid_height = 0.01  # 格子高度1%
-        args.grid_share = 1000  # 基准是1000份
+        args.grid_amount = 1000  # 1个格子是1000元
         args.quantile_negative = quantiles[0]
         args.quantile_positive = quantiles[1]
-        args.bank = True
+        args.bank = True # 使用借款方法
         df = main(args)
         result.append(df)  # 把结果append到数组里
 
