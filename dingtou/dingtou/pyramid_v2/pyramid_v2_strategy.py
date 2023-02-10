@@ -90,6 +90,7 @@ class PyramidV2Strategy(Strategy):
             # df = df_daily_fund[df_daily_fund.index<=self.end_date]
             # avg_close = (df.iloc[-self.ma_days:].close.max() + df.iloc[-self.ma_days:].close.min())/2
             # 这才是正确做法，每天都算前3年的平均值
+            logger.info("计算平均线，MA[%d]", self.ma_days)
             if self.ma_days <= 0:
                 # 如果是self.ma_days是负值，回看前N天的最大最小值的中间值
                 maxs = talib.MAX(df_daily_fund.close, timeperiod=-self.ma_days)
@@ -97,11 +98,13 @@ class PyramidV2Strategy(Strategy):
                 df_daily_fund['ma'] = (maxs + mins) / 2
                 # 额外画上一个年线参考
                 df_daily_fund['ma242'] = talib.SMA(df_daily_fund.close, timeperiod=242)
+                logger.info('按照最大最小值计算MA')
             else:
                 # 如果是self.ma_days是正值，用N天的均线
                 # df_daily_fund['ma'] = talib.SMA(df_daily_fund.close, timeperiod=self.ma_days)
                 # 不用talib的sma，是因为，ma_days取850的时候，会出现850个na，所以用pandas的rolling，使用min_periods避免nan
                 df_daily_fund['ma'] = df_daily_fund.close.rolling(window=self.ma_days,min_periods=1).mean()
+                logger.info('按照移动平均计算MA')
 
             # 计算价格到均价的距离
             df_daily_fund['diff_percent_close2ma'] = (df_daily_fund.close - df_daily_fund.ma) / df_daily_fund.ma
@@ -110,21 +113,21 @@ class PyramidV2Strategy(Strategy):
             positive_threshold = df_daily_fund[
                 df_daily_fund.diff_percent_close2ma > 0].diff_percent_close2ma.quantile(self.quantile_positive)
             self.positive_threshold_dict[code] = 1 + positive_threshold // self.grid_height
-            # logger.debug("[%s] %.0f%%分位数的正收益为%.2f%%, 在第%d个格",
-            #              code,
-            #              self.quantile_positive*100,
-            #              positive_threshold*100,
-            #              self.positive_threshold_dict[code] )
+            logger.info("[%s] %.0f%%分位数的正收益为%.2f%%, 在第%d个格",
+                         code,
+                         self.quantile_positive*100,
+                         positive_threshold*100,
+                         self.positive_threshold_dict[code] )
 
             # 低于MA的20%的分位数
             negative_threshold = df_daily_fund[
                 df_daily_fund.diff_percent_close2ma < 0].diff_percent_close2ma.quantile(1 - self.quantile_negative)
             self.negative_threshold_dict[code] = negative_threshold // self.grid_height
-            # logger.debug("[%s] %.0f%%分位数的负收益为%.2f%%, 在第%d个格",
-            #              code,
-            #              self.quantile_negative*100,
-            #              negative_threshold*100,
-            #              self.negative_threshold_dict[code] )
+            logger.info("[%s] %.0f%%分位数的负收益为%.2f%%, 在第%d个格",
+                         code,
+                         self.quantile_negative*100,
+                         negative_threshold*100,
+                         self.negative_threshold_dict[code] )
 
             # 这个是为了画图用，画出上下边界区域
             df_daily_fund['ma_upper'] = df_daily_fund.ma * (1 + positive_threshold)
