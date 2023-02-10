@@ -18,9 +18,12 @@ class Strategy():
         self.df_baseline = df_baseline
         self.df_dict = df_dict
 
-    def get_value(self, df, key):
+    def get_value(self, df, index_key, col_name=None):
         try:
-            return df.loc[key]
+            if col_name is None:
+                return df.loc[index_key]
+            else:
+                return df.loc[index_key][col_name]
         except KeyError:
             return None
 

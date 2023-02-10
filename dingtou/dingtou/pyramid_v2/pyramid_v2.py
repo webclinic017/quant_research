@@ -154,7 +154,7 @@ python -m dingtou.pyramid_v2.pyramid_v2 \
 -b sh000001 \
 -a 0 \
 -m 850 \
--ga 10000 \
+-ga 1000 \
 -gh 0.01 \
 -qp 0.8 \
 -qn 0.2 \

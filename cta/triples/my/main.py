@@ -5,13 +5,12 @@ from pandas import DataFrame
 from tabulate import tabulate
 
 from backtest.backtester import BackTester
-from backtest.banker import Banker
 from backtest.broker import Broker
 from backtest.stat import calculate_metrics
-from ketler.my.ketler_strategy import KelterStrategy
-from ketler.my.plot import plot
+from triples.my.plot import plot
+from triples.my.triples_strategy import TripleStrategy
 from utils import utils
-from utils.data_loader import load_index, load_stocks
+from utils.data_loader import load_index, load_hsgt_top10, load_moneyflow_hsgt, load_hk_bought_stocks
 from utils.utils import str2date, date2str
 
 logger = logging.getLogger(__name__)
@@ -21,13 +20,14 @@ logger = logging.getLogger(__name__)
 """
 
 
-def backtest(df_baseline: DataFrame, df_dict, args):
-    # 是否可以透支？
+def backtest(df_baseline: DataFrame, df_dict, params):
     # banker = Banker()
     banker = None
-    broker = Broker(args.amount, banker)
-    backtester = BackTester(broker, args.start_date, args.end_date, buy_day='tomorrow')
-    strategy = KelterStrategy(broker, args.atr, args.ema)
+    broker = Broker(params.amount, banker)
+    broker.set_buy_commission_rate(0.0002)
+    broker.set_sell_commission_rate(0)
+    backtester = BackTester(broker, params.start_date, params.end_date, buy_day='tomorrow')
+    strategy = TripleStrategy(broker, params)
     backtester.set_strategy(strategy)
 
     # 单独调用一个set_data，是因为里面要做特殊处理
@@ -37,31 +37,34 @@ def backtest(df_baseline: DataFrame, df_dict, args):
     # 运行回测！！！
     backtester.run()
 
-    return broker.df_total_market_value, broker, banker
+    return broker.df_total_market_value, broker, banker,strategy.df_position
 
 
 def print_trade_details(start_date, end_date, amount, df_baseline, df_dict, df_portfolio, broker, banker):
     df_stat = DataFrame()
     # 如果是多只基金一起投资，挨个统计他们各自的情况
-    for code, df_fund in df_dict.items():
-        df_fund = df_fund[(df_fund.index > start_date) & (df_fund.index < end_date)]
+    for code, df_data in df_dict.items():
+        if code in ['moneyflow','stock_pool','baseline']: continue
+
+        df_data = df_data[(df_data.index > start_date) & (df_data.index < end_date)]
         df_portfolio = df_portfolio[(df_portfolio.index > start_date) & (df_portfolio.index < end_date)]
         if len(broker.df_trade_history) == 0:
             logger.warning("基金[%s] 在%s~%s未发生任何一笔交易", code, date2str(start_date), date2str(end_date))
             continue
-        if len(df_fund) == 0:
+        if len(df_data) == 0:
             logger.warning("基金[%s] 在%s~%s的数据为空", code, date2str(start_date), date2str(end_date))
             continue
         # 统计这只基金的收益情况
-        stat = calculate_metrics(df_portfolio, df_baseline, df_fund, broker, amount, start_date, end_date)
+        stat = calculate_metrics(df_portfolio, df_baseline, df_data, broker, amount, start_date, end_date)
         stat["借钱总额"] = banker.debt if banker else 'N/A'
         stat["借钱次数"] = banker.debt_num if banker else 'N/A'
 
-        # 打印，暂时注释掉
-        for k, v in stat.items():
-            logger.info("{:>20s} : {}".format(k, v))
-        logger.info("=" * 80)
-        df_stat = df_stat.append(stat, ignore_index=True)
+        if stat['买次']>0:
+            # 打印，暂时注释掉
+            for k, v in stat.items():
+                logger.info("{:>20s} : {}".format(k, v))
+            logger.info("=" * 80)
+            df_stat = df_stat.append(stat, ignore_index=True)
 
     if len(df_stat) == 0: return df_stat
 
@@ -91,20 +94,25 @@ def print_trade_details(start_date, end_date, amount, df_baseline, df_dict, df_p
     return df_stat
 
 
-def main(args):
-    df_baseline = load_index(index_code=args.baseline)
+def main(params):
 
     # 加载基金数据，标准化列名，close是为了和标准的指数的close看齐
-    df_dict = load_stocks(codes=args.code.split(","), ma_days=240)
+    df_dict = {}
+    df_dict['baseline'] = df_baseline = load_index(index_code=params.baseline)
+    if params.stock_select == 'by_net_amount': # 使用tushare的净现金流的股票
+        df_dict['stock_pool'] = load_hsgt_top10()
+    else:
+        df_dict['stock_pool'] = load_hk_bought_stocks()
+    df_dict['moneyflow'] = load_moneyflow_hsgt()
 
-    df_portfolio, broker, banker = backtest(df_baseline, df_dict, args)
+    df_portfolio, broker, banker, df_moneyflow_position = backtest(df_baseline, df_dict, params)
 
     df_portfolio.sort_values('date')
     df_portfolio.set_index('date', inplace=True)
 
     # 统一过滤一下时间区间,
-    start_date = str2date(args.start_date)
-    end_date = str2date(args.end_date)
+    start_date = str2date(params.start_date)
+    end_date = str2date(params.end_date)
 
     df_baseline = df_baseline[(df_baseline.index > start_date) & (df_baseline.index < end_date)]
     df_portfolio = df_portfolio[(df_portfolio.index > start_date) & (df_portfolio.index < end_date)]
@@ -113,7 +121,7 @@ def main(args):
     if banker:
         amount = banker.debt
     else:
-        amount = args.amount
+        amount = params.amount
     df_stat = print_trade_details(start_date,
                                   end_date,
                                   amount,
@@ -123,36 +131,25 @@ def main(args):
                                   broker,
                                   banker)
 
+    for code,df in df_dict.items():
+        df_dict[code]= df[(df.index > start_date) & (df.index < end_date)]
+
     # 每只基金都给他单独画一个收益图
-    plot(start_date, end_date, broker, df_baseline, df_portfolio, df_dict, df_stat)
+    plot(start_date, end_date, broker, df_baseline, df_portfolio, df_dict, df_stat,df_moneyflow_position)
 
     return df_stat
 
 
 """
-python -m ketler.my.main \
--b sh000001 \
--c 300347.SZ \
--s 20200101 \
--e 20220501 \
--a 100000 \
--at 17 \
--em 20
+python -m triples.my.main
 """
 if __name__ == '__main__':
     utils.init_logger(file=True)
 
     # 获得参数
     parser = argparse.ArgumentParser()
-    parser.add_argument('-s', '--start_date', type=str, default="20150101", help="开始日期")
-    parser.add_argument('-e', '--end_date', type=str, default="20221201", help="结束日期")
-    parser.add_argument('-b', '--baseline', type=str, default=None, help="基准指数，这个策略里就是基金本身")
-    parser.add_argument('-c', '--code', type=str, help="股票代码")
-    parser.add_argument('-a', '--amount', type=int, default=100000)
-    parser.add_argument('-at', '--atr', type=int, default=17)
-    parser.add_argument('-em', '--ema', type=int, default=20) # 移动均值天数
-
-    args = parser.parse_args()
-    print(args)
-    logger.info(args)
-    main(args)
+    parser.add_argument('-c', '--conf', type=str, default="triples/params.yml", help="参数文件路径")
+    __params = parser.parse_args()
+    params = utils.load_params(__params.conf)
+    logger.info(params)
+    main(params)

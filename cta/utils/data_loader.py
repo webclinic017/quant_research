@@ -5,17 +5,27 @@ import akshare as ak
 import pandas as pd
 import talib
 from backtrader.feeds import PandasData
+import tushare as ts
 
 from utils import utils
+from utils.utils import get_monthly_duration
 
 logger = logging.getLogger(__name__)
 
 
 def load(name, func, **kwargs):
+    """
+    通用加载函数：如果有csv文件就加载它，没有的话就去调用akshare函数，获得数据后保存到data目录
+    :param name: 数据的名称，是个字符串标识而已
+    :param func: 真正需要调用的akshare的函数
+    :param kwargs: akshare函数所需要的动态参数
+    :return:
+    """
+
     logger.info(f"加载{name}数据，函数:{func.__name__}，参数:{kwargs}")
     if not os.path.exists("./data"): os.mkdir("./data")
 
-    values = [v for k, v in kwargs.items()]
+    values = [str(v) for k, v in kwargs.items()]
     values = "_".join(values)
     file_name = f"data/{name}_{values}.csv"
 
@@ -25,7 +35,7 @@ def load(name, func, **kwargs):
         df.to_csv(file_name)
     else:
         logger.debug(f"加载缓存文件:{file_name}")
-        df = pd.read_csv(file_name)
+        df = pd.read_csv(file_name,dtype={'code':str}) # code列要转成str，没有这个列系统会自动忽略
     return df
 
 
@@ -56,12 +66,14 @@ def load_stocks(codes, ma_days):
 
 
 def load_stock(code):
-    code = code[:6] # 靠，代码需要去掉市场表示，如：300347.SZ=>300347
+    """加载股票数据"""
+    # 调通用加载函数，加载数据
     df = load(name=code,
               func=ak.stock_zh_a_hist,
               symbol=code,
               period="daily",
               adjust="qfq")
+    # 修改列名（为了兼容backtrader的要求的列名），以及转日期列为日期格式，并，设置日期列为索引列
     df['日期'] = pd.to_datetime(df['日期'], format='%Y-%m-%d')
     df.rename(columns={'日期': 'date',
                        '开盘': 'open',
@@ -89,6 +101,113 @@ def load_fund(code):
     df_fund = df_fund.set_index('date')
     df_fund['code'] = code  # 都追加一个code字段
     return df_fund
+
+
+def load_hk_bought_stocks():
+    """
+    从2018.1.1至今的北上资金购买的每日沪深300数据
+    这个是数据是我从聚宽爬下来的:
+        ,date,name,code,share_ratio
+        0,2018-01-02,平安银行,000001.XSHE,2.12
+    :return:
+    """
+    file_name = "./data/hk_bought_stocks_20180101_now.csv"
+    logger.debug(f"加载数据文件文件:{file_name}")
+    df = pd.read_csv(file_name, dtype={'code': str})  # code列要转成str，没有这个列系统会自动忽略
+    df['date'] = pd.to_datetime(df.date.apply(str), format='%Y-%m-%d')
+    df['code'] = df.code.str[:6] #
+    df = df.set_index('date')
+    df = df.sort_index()
+    return df
+
+
+def load_hsgt_top10():
+    df = load('hsgt_top10', __load_hsgt_top10)
+    df['date'] = pd.to_datetime(df.date.apply(str), format='%Y-%m-%d')
+    df = df.set_index('date')
+    df = df.sort_index()
+    return df
+
+
+def __load_hsgt_top10():
+    """
+    https://tushare.pro/document/2?doc_id=48
+    这个实现比较麻烦，主要是每次只能tushare返回300条,
+    所以，我只能每个月下载一次，
+    :param pro:
+    :return:
+    """
+    pro = ts.pro_api(utils.load_config()['token'])
+    dfs = []
+    # 看了数据，是从2014.11才开始有的
+
+    period_scopes = get_monthly_duration('20141101','20230201')
+    from tqdm import tqdm
+
+    bar = tqdm()
+    for i,period_scope in enumerate(period_scopes):
+        start = period_scope[0]
+        end = period_scope[1]
+        df = pro.hsgt_top10(start_date=start, end_date=end, market_type='1')
+        dfs.append(df)
+        df = pro.hsgt_top10(start_date=start, end_date=end, market_type='3')
+        dfs.append(df)
+        bar.update(i)
+    bar.close()
+    df = pd.concat(dfs)
+    df['code'] = df.code.str[:6] # 遵从简化原则，不保留市场代码：600601.SH => 600601
+    df.rename(columns={'trade_date': 'date', 'trade_code': 'code'}, inplace=True)
+    return df
+
+
+
+def load_moneyflow_hsgt():
+    df = load('moneyflow_hsgt', __load_moneyflow_hsgt)
+    df = set_date_index(df)
+    df = df.sort_index()
+    return df
+
+
+def set_date_index(df,date_column='date'):
+    df[date_column] = pd.to_datetime(df.date.apply(str), format='%Y-%m-%d')
+    df = df.set_index(date_column)
+    return df
+
+
+def __load_moneyflow_hsgt():
+    """
+    https://tushare.pro/document/2?doc_id=47
+           trade_date  ggt_ss  ggt_sz      hgt      sgt  north_money  south_money
+        0    20180808  -476.0  -188.0   962.68   799.94      1762.62       -664.0
+        1    20180807  -261.0   177.0  2140.85  1079.82      3220.67        -84.0
+        2    20180803   667.0   -32.0  -436.99  1088.07       651.08        635.0
+        3    20180802 -1651.0  -366.0   874.97  -216.65       658.32      -2017.0
+        4    20180801 -1443.0  -443.0   544.36   542.79      1087.15      -1886.0
+        5    20180731  -299.0   -21.0  1923.72  1345.48      3269.20       -320.0
+        6    20180730  -588.0   611.0  2536.54   146.24      2682.78         23.0
+    列说明：
+        ggt_ss	    港股通（上海）
+        ggt_sz	    港股通（深圳）
+        hgt	    	沪股通（百万元）
+        sgt	    	深股通（百万元）
+        north_money	北向资金（百万元）
+        south_money	南向资金（百万元）
+    :param pro:
+    :return:
+    """
+    pro = ts.pro_api(utils.load_config()['token'])
+
+    # 看了数据，是从2014.11才开始有的
+    dfs = []
+    for year in range(2014, 2023):
+        start = f'{year}0101'
+        end = f'{year}1231'
+        df = pro.moneyflow_hsgt(start_date=start, end_date=end)
+        dfs.append(df)
+    df = pd.concat(dfs)
+    df.rename(columns={'trade_date': 'date'}, inplace=True)
+
+    return df
 
 
 def bt_wrapper(df, start_date, end_date):
