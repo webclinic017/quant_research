@@ -18,19 +18,23 @@ research1基础上，做参数调优
     [0.2,0.5],[0.2,0.6],[0.2,0.8],
     [0.4,0.5],[0.4,0.6],[0.4,0.8],
 """
-# 全量版
+# 方案1：全量版：python -m dingtou.pyramid_v2.research2 -c 510310,510500,159915,588090 -y 1,2,3,4,5 -s 20130101 -e 20230101 -cs 16
+# 预估时间：500 x 73 秒 = 36500 秒 = 10小时
 native_quantiles = [0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9]
 positive_quantiles = [0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9]
 quantiles = list(itertools.product(*[native_quantiles,positive_quantiles]))
 MAs = [240, 480, 850, -240, -480]
 
-# 中间版
-native_quantiles = [0.2,0.3,0.4,0.5]
-positive_quantiles = [0.5,0.6,0.7,0.8]
+# 方案2：全量版：python -m dingtou.pyramid_v2.research2 -c 510310,510500,159915,588090 -y 10 -s 20130101 -e 20230101 -cs 16
+# 预估时间：11秒 x 500 = 5500 秒 = 1.5小时
+native_quantiles = [0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9]
+positive_quantiles = [0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9]
 quantiles = list(itertools.product(*[native_quantiles,positive_quantiles]))
-MAs = [240, 480, 850]
+MAs = [240, 480, 850, -240, -480]
 
-# 精简版，正负阈值少一些，MA少一些
+# 方案3：精简版，正负阈值少一些，MA少一些，3x16 = 48
+# 预估时间：73秒 x 48 = 3504 秒 = 1小时
+# python -m dingtou.pyramid_v2.research2 -c 510310,510500,159915,588090 -y 1,2,3,4,5 -s 20130101 -e 20230101 -cs 16
 native_quantiles = [0.2,0.3,0.4,0.5]
 positive_quantiles = [0.5,0.6,0.7,0.8]
 quantiles = list(itertools.product(*[native_quantiles,positive_quantiles]))

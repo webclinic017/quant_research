@@ -76,12 +76,13 @@ def run(code, start_date, end_date, ma, quantiles, years, roll_months, cores):
     #   16个工作进程运行完毕，处理[83]条数据，耗时: 0 分 56 秒,     [2,3,5年]
     #   16个工作进程运行完毕，处理[108]条数据，耗时: 1 分 0 秒,     [2,3,4,5年]
     #   16个工作进程运行完毕，处理[145]条数据，耗时: 1 分 13 秒,    [1,2,3,4,5年]
+    #   16个工作进程运行完毕，处理[145]条数据，耗时: 11 秒,         [10年]
     logger.debug("research1耗时: %s ", str(datetime.timedelta(seconds=time.time() - start_time)))
 
     return df
 
 # python -m dingtou.pyramid_v2.research1 -c 510500 -s 20130101 -e 20230101 -cs 16  -m 850 -q 0.2,0.8
-# python -m dingtou.pyramid_v2.research1 -c 510310,510500,159915,588090 -s 20130101 -e 20230101 -cs 16
+# python -m dingtou.pyramid_v2.research1 -c 510310,510500,159915,588090 -s 20130101 -e 20230101 -y 10 -cs 16
 """
 我精心挑出来的各行业、指数的ETF，17个
 python -m dingtou.pyramid_v2.research1 \
