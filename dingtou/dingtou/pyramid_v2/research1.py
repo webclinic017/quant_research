@@ -72,8 +72,10 @@ def run(code, start_date, end_date, ma, quantiles, years, roll_months, cores):
     df = pd.concat(results)
     df.to_csv(f"debug/{code}_{start_date}_{end_date}_{years}_{roll_months}.csv")
 
-    # 4只基金，一起跑，2013~2015，56秒
-    # 16个工作进程运行完毕，处理[83]条数据，耗时: 0 分 21 秒
+    # 4只基金，2013~2015：
+    #   16个工作进程运行完毕，处理[83]条数据，耗时: 0 分 56 秒,     [2,3,5年]
+    #   16个工作进程运行完毕，处理[108]条数据，耗时: 1 分 0 秒,     [2,3,4,5年]
+    #   16个工作进程运行完毕，处理[145]条数据，耗时: 1 分 13 秒,    [1,2,3,4,5年]
     logger.debug("research1耗时: %s ", str(datetime.timedelta(seconds=time.time() - start_time)))
 
     return df
@@ -98,7 +100,7 @@ if __name__ == '__main__':
     parser.add_argument('-e', '--end_date', type=str, default="20230101", help="结束日期")
     parser.add_argument('-cs', '--cores', type=int, default=10)
     parser.add_argument('-c', '--code', type=str, help="股票代码")
-    parser.add_argument('-y', '--years', type=str, default='2,3,4,5', help="测试年份")
+    parser.add_argument('-y', '--years', type=str, default='1,2,3,4,5', help="测试年份")
     parser.add_argument('-r', '--roll', type=int, default=3, help="滚动月份")
     parser.add_argument('-m', '--ma', type=int, default=850)
     parser.add_argument('-q', '--quantile', type=str, default='0.2,0.8')

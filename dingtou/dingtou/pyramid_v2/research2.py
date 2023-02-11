@@ -18,23 +18,42 @@ research1基础上，做参数调优
     [0.2,0.5],[0.2,0.6],[0.2,0.8],
     [0.4,0.5],[0.4,0.6],[0.4,0.8],
 """
+# 全量版
 native_quantiles = [0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9]
 positive_quantiles = [0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9]
-
 quantiles = list(itertools.product(*[native_quantiles,positive_quantiles]))
-
 MAs = [240, 480, 850, -240, -480]
+
+# 中间版
+native_quantiles = [0.2,0.3,0.4,0.5]
+positive_quantiles = [0.5,0.6,0.7,0.8]
+quantiles = list(itertools.product(*[native_quantiles,positive_quantiles]))
+MAs = [240, 480, 850]
+
+# 精简版，正负阈值少一些，MA少一些
+native_quantiles = [0.2,0.3,0.4,0.5]
+positive_quantiles = [0.5,0.6,0.7,0.8]
+quantiles = list(itertools.product(*[native_quantiles,positive_quantiles]))
+MAs = [240, 480, 850]
 
 
 """
-quantiles = 10x10 = 100
-mas = 5
-跑一个回测4秒，
-按照2013~2023，,2、3、4、5年
-合计：5x100 = 500
-4只基金一次回测：56 s
-合计：5x100x56 = 28000 s
-16核一起跑：28000/3600 = 7.7 hours
+全量版：
+    quantiles = 10x10 = 100
+    mas = 5
+    按照2013~2023，,1、2、3、4、5年
+    合计：5x100 = 500
+    4只基金一次回测： 73 s
+    合计：5x100x73 = 36500 s
+    16核一起跑：36500/3600 = 10 hours
+    注：唉，这个需要的时间太多了，算了，不跑了，跑下面的精简版吧。
+精简版：
+    quantiles = 4x4 = 16
+    mas = 3
+    合计：3x16 = 48
+    按照2013~2023，,1、2、3年，4只基金一次回测： 35 s
+    合计：48x35 = 1680 s
+    16核一起跑：1680/60 = 28 minutes
 """
 
 def main(code, start_date, end_date, years, roll_months, cores):
