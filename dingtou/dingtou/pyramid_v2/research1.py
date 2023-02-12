@@ -77,7 +77,13 @@ def run(code, start_date, end_date, ma, quantiles, years, roll_months, cores):
     #   16个工作进程运行完毕，处理[108]条数据，耗时: 1 分 0 秒,     [2,3,4,5年]
     #   16个工作进程运行完毕，处理[145]条数据，耗时: 1 分 13 秒,    [1,2,3,4,5年]
     #   16个工作进程运行完毕，处理[145]条数据，耗时: 11 秒,         [10年]
-    logger.debug("research1耗时: %s ", str(datetime.timedelta(seconds=time.time() - start_time)))
+    logger.debug("完成均值[%.2f],分位数%r,[%s]年，间隔[%d]个月，使用[%d]核的回测，耗时: %s ",
+                 ma,
+                 quantiles,
+                 years,
+                 roll_months,
+                 cores,
+                 str(datetime.timedelta(seconds=time.time() - start_time)))
 
     return df
 

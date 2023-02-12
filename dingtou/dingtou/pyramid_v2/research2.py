@@ -58,6 +58,12 @@ MAs = [240, 480, 850]
     按照2013~2023，,1、2、3、4、5年，4只基金一次回测： 73 s
     合计：48x73 = 3504 s
     16核一起跑：3504/60 =1小时
+    python -m dingtou.pyramid_v2.research2 \
+        -c 510310,510500,159915,588090 \
+        -s 20180101 -e 20210101 \
+        -r 3 \
+        -cs 16 \
+        -y 1,2,3,4,5 
 """
 
 def main(code, start_date, end_date, years, roll_months, cores):
@@ -75,7 +81,11 @@ def main(code, start_date, end_date, years, roll_months, cores):
             dfs.append(df_result)
             pbar.update(i)
             i+= 1
-        logger.debug("完成组合 %r + %d 耗时：%s",q,ma,str(datetime.timedelta(seconds=time.time() - start)))
+        logger.debug("完成组合 %r + %d（[%d]个组合），耗时：%s",
+                     q,
+                     ma,
+                     len(quantiles) * len(MAs),
+                     str(datetime.timedelta(seconds=time.time() - start)))
     df = pd.concat(dfs)
     df.to_csv(f"debug/{code}_{start_date}_{end_date}_{years}_{roll_months}_quantiles.csv")
 
