@@ -74,6 +74,22 @@ def print_trade_details(start_date, end_date, amount, df_baseline, fund_dict, df
     # 打印交易记录
     logger.info("交易记录：")
     print(tabulate(broker.df_trade_history, headers='keys', tablefmt='psql'))
+    # 打印交易统计
+    broker.df_trade_history['year'] = broker.df_trade_history.actual_date.dt.year
+    print("年投资金额统计：")
+    df_year_amount = broker.df_trade_history.groupby('year').sum()['amount']
+    print("最多投资：",df_year_amount.max())
+    print("最少投资：", df_year_amount.min())
+    print("平均投资：", df_year_amount.mean())
+    print(df_year_amount)
+    df_year_trade= broker.df_trade_history.groupby('year').count()['actual_date']
+    print("每年投资次数统计：")
+    print("最多次数：",df_year_trade.max())
+    print("最少次数：", df_year_trade.min())
+    print("平均次数：", df_year_trade.mean())
+    print(df_year_trade)
+
+
     broker.df_trade_history.to_csv(trade_file_name)
 
     # 打印期末持仓情况
@@ -90,7 +106,7 @@ def print_trade_details(start_date, end_date, amount, df_baseline, fund_dict, df
     #     print(tabulate(df, headers='keys', tablefmt='psql'))
     df_stat.to_csv(stat_file_name)
 
-    return df_stat
+    return df_stat, broker.df_trade_history
 
 
 def main(args):
@@ -119,7 +135,7 @@ def main(args):
         amount = banker.debt + args.amount
     else:
         amount = args.amount
-    df_stat = print_trade_details(start_date,
+    df_stat,df_trade = print_trade_details(start_date,
                                   end_date,
                                   amount,
                                   df_baseline,
@@ -131,13 +147,22 @@ def main(args):
     # 每只基金都给他单独画一个收益图
     plot(start_date, end_date, broker, df_baseline, df_portfolio, fund_dict, df_stat)
 
-    return df_stat
+    return df_stat,df_trade
 
 
 """
-python -m dingtou.pyramid_v2.pyramid_v2 -c 510500,510330,159915,588090 -s 20180101 -e 20230101 -b sh000001 -a 0 -m 850 -ga 1000 -gh 0.01 -qp 0.6 -qn 0.4 -bk
-
-python -m dingtou.pyramid_v2.pyramid_v2 -c 588090 -s 20160101 -e 20230101 -b sh000001 -a 200000 -m 480 -ga 1000 -gh 0.01 -qp 0.8 -qn 0.4 -bk
+python -m dingtou.pyramid_v2.pyramid_v2 \
+    -c 510500,510330,159915,588090 \
+    -s 20130101 \
+    -e 20230101 \
+    -b sh000001 \
+    -a 0 \
+    -m 850 \
+    -ga 1000 \
+    -gh 0.01 \
+    -qn 0.4 \
+    -qp 0.8 \
+    -bk
 """
 if __name__ == '__main__':
     utils.init_logger(file=True)

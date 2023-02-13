@@ -55,15 +55,16 @@ MAs = [240, 480, 850]
     quantiles = 4x4 = 16
     mas = 3
     合计：3x16 = 48
-    按照2013~2023，,1、2、3、4、5年，4只基金一次回测： 73 s
-    合计：48x73 = 3504 s
-    16核一起跑：3504/60 =1小时
+    按照2013~2023，,1、2、3、4、5年，4只基金一次回测： 100 s
+    合计：48x100 = 4800 s
+    16核一起跑：4800/3600 =1小时20分钟
     python -m dingtou.pyramid_v2.research2 \
         -c 510310,510500,159915,588090 \
-        -s 20180101 -e 20210101 \
+        -s 20130101 -e 20230101 \
         -r 3 \
         -cs 16 \
         -y 1,2,3,4,5 
+    实际跑下来： 耗时: 1:08:28.255865
 """
 
 def main(code, start_date, end_date, years, roll_months, cores):
@@ -74,11 +75,11 @@ def main(code, start_date, end_date, years, roll_months, cores):
     for q in quantiles:
         start = time.time()
         for ma in MAs:
-            df_result = run(code, start_date, end_date, ma, q, years, roll_months, cores)
-            df_result['负收益分位数'] = q[0]
-            df_result['正收益分位数'] = q[1]
-            df_result['移动均值'] = ma
-            dfs.append(df_result)
+            df_stat,_ = run(code, start_date, end_date, ma, q, years, roll_months, cores)
+            df_stat['负收益分位数'] = q[0]
+            df_stat['正收益分位数'] = q[1]
+            df_stat['移动均值'] = ma
+            dfs.append(df_stat)
             pbar.update(i)
             i+= 1
         logger.debug("完成组合 %r + %d（[%d]个组合），耗时：%s",
@@ -87,7 +88,7 @@ def main(code, start_date, end_date, years, roll_months, cores):
                      len(quantiles) * len(MAs),
                      str(datetime.timedelta(seconds=time.time() - start)))
     df = pd.concat(dfs)
-    df.to_csv(f"debug/{code}_{start_date}_{end_date}_{years}_{roll_months}_quantiles.csv")
+    df.to_csv(f"debug/{code}_{start_date}_{end_date}_{years}_{roll_months}_quantiles_mas.csv")
 
 
 # python -m dingtou.pyramid_v2.research2 -c 510310,510500,159915,588090 -s 20130101 -e 20230101 -cs 16

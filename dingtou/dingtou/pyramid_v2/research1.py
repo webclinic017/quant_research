@@ -19,7 +19,7 @@ def backtest(data, code, ma, quantiles, result):
     第二参数是返回用的数据，
     后面才是真正的参数，必须这么约定
     :param data:
-    :param result:
+    :param result: ----> 是一个固定的list类型，用于返回结果，使用多进程只能这样返回结果
     :param code:
     :param ma:
     :param quantiles:
@@ -69,8 +69,11 @@ def run(code, start_date, end_date, ma, quantiles, years, roll_months, cores):
             code=code,
             ma=ma,
             quantiles=quantiles)
-    df = pd.concat(results)
-    df.to_csv(f"debug/{code}_{start_date}_{end_date}_{years}_{roll_months}.csv")
+    stats, trades  = zip(*result)
+    df_stat = pd.concat(stats)
+    df_stat.to_csv(f"debug/stat_{code}_{start_date}_{end_date}_{years}_{roll_months}.csv")
+    df_trade = pd.concat(trades)
+    df_trade.to_csv(f"debug/trade_{code}_{start_date}_{end_date}_{years}_{roll_months}.csv")
 
     # 4只基金，2013~2015：
     #   16个工作进程运行完毕，处理[83]条数据，耗时: 0 分 56 秒,     [2,3,5年]
@@ -85,7 +88,7 @@ def run(code, start_date, end_date, ma, quantiles, years, roll_months, cores):
                  cores,
                  str(datetime.timedelta(seconds=time.time() - start_time)))
 
-    return df
+    return df_stat,df_trade
 
 # python -m dingtou.pyramid_v2.research1 -c 510500 -s 20130101 -e 20230101 -cs 16  -m 850 -q 0.2,0.8
 # python -m dingtou.pyramid_v2.research1 -c 510310,510500,159915,588090 -s 20130101 -e 20230101 -y 10 -cs 16
