@@ -16,8 +16,6 @@ conf_path = f"{home_dir}\\config.yml"
 trans_log_dir = f"{home_dir}\\history"
 trans_log = f"{trans_log_dir}\\transaction.csv"
 last_grid_position = f"{trans_log_dir}\\last_grid_position.json"
-url = "http://127.0.0.1:8080/api?token=my_secret_token@piginzoo.com"
-# url = "http://stock.piginzoo.com/api?token=my_secret_token@piginzoo.com"
 
 POLICY_NAME = '心跳'
 
@@ -130,8 +128,9 @@ def handlebar(ContextInfo):
     try:
         __handlebar(ContextInfo)
     except Exception as e:
-        msg = ''.join(list(traceback.format_exc()))
-        logger.exception("handlerbar异常")
+        #msg = ''.join(list(traceback.format_exc()))
+        logger.error("异常发生：%s",str(e))
+        #logger.exception("handlerbar异常")
 
 
 def http_json_post(url, dict_msg):
@@ -146,8 +145,9 @@ def http_json_post(url, dict_msg):
 
 def __handlebar(C):
     # 实盘/模拟盘的时候，从2015开始，所以需要跳过历史k线，
+    # 只要第一个tick（is_new_bar），才触发，否则3秒就一次，受不了
     # 回测的时候不需要
-    if not C.is_last_bar():
+    if not C.is_last_bar() or not C.is_new_bar():
         return
 
     # 获得当天的日期
@@ -168,8 +168,8 @@ def __handlebar(C):
         C.is_last_bar())
     """
 
-    http_json_post(url, {'action': 'heartbeat',
-                         'name': 'heartbeat',
+    http_json_post(conf['url'], {'action': 'heartbeat',
+                         'name': 'qmt',
                          'info': [
                              {'name':'accounts', 'data':get_accounts()},
                              {'name':'positions', 'data':get_positions()},
