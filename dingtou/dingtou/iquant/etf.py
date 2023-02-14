@@ -20,14 +20,36 @@ import datetime
 
 logger = logging.getLogger(__name__)
 
+"""
+# 实盘ETF定投策略：
+    最终最优的参数组合是：7只股票，[-0.4~0.8]的上下买卖阈值，850日均线，买卖倍数为1:2 ==> 7%/年化（2013~2023）
+
+运行回测的参数：
+python -m dingtou.pyramid_v2.pyramid_v2 \
+    -c 512690,512580,512660,159915,159928,510330,510500 \
+    -s 20130101 \
+    -e 20230101 \
+    -b sh000001 \
+    -a 0 \
+    -m 850 \
+    -ga 1000 \
+    -gh 0.01 \
+    -qn 0.4 \
+    -qp 0.8 \
+    -bf 1 \
+    -sf 2 \
+    -bk
+"""
+
 # 设置所有的参数，这些参数都是经过回测的最优的，无需调整
-# stocks = ['510500.SH','510330.SH','159915.SZ','588090.SH']
-stocks = ['588090.SH']  # TODO，暂时测试一只基金
+stocks = ["512690.SH","512580.SH","512660.SH","159915.SZ","159928.SZ","510330.SH","510500.SH"]
 grid_height = 0.01
-grid_amount = 3000  # 3000元比较合适，大约115w/year，一次投6.7万，最多一次24万，常备30万，低于20万就报警《ETF定投数据统计》
+grid_amount = 1000
 quantile_positive = 0.8
-quantile_negative = 0.2
+quantile_negative = 0.4
 ma_days = 850
+buy_factor = 1
+sell_factor = 2
 
 # 设置所有的目录
 home_dir = "c:\\workspace\\iquant"
@@ -136,10 +158,8 @@ class Broker():
          无法写成这个参数形式，不知为何，只好写成不带参数提示类型的调用
         """
         # passorder(opType,orderType,accountid,orderCode,prType,price,volume,strategy_name,quickTrade,userOrderId,ContextInfo)
-
-        # 按照股数（不是手数）进行下单
+        # 按照股数（不是手数）进行下单，这个仅作参考用，不使用
         # passorder(23,1101, self.account, code, 3, 0, positoin, POLICY_NAME,1,order_id,self.context)
-
         # 按照钱数进行下单，但是因为A股有最少1手(100股)的限制，所以，函数会自动取整到100股的整数倍
         # passorder(23,1102, self.account, code, 3, 0, amount, POLICY_NAME,1,order_id,self.context)
 
@@ -165,8 +185,8 @@ class Broker():
         order_time = time.strftime('%Y%m%d%H%M%S', time.localtime(time.time()))
         order_id = f"{order_time}_{code}_{POLICY_NAME}"
 
-        # 测试按照价格买,110元
-        # passorder(23,1102, self.account, code, 3, 0, 110, POLICY_NAME,1,order_id,self.context)
+        # 按照金额来买
+        passorder(23,1102, self.account, code, 3, 0, amount, POLICY_NAME,1,order_id,self.context)
 
         msg = "账号%s于%s日按照卖2价，买入基金%s: %.0f元" % (self.account, date2str(date), code, amount)
         logger.info(msg)
@@ -189,12 +209,12 @@ class Broker():
 
         passorder(
          opType = 24, # 24：股票卖出，或沪港通、深港通股票卖出
-         orderType = 1101, # 单股、单账号、普通、股/手方式下单,
+         orderType = 1102, # 单股、单账号、普通、金额（元）方式下单（只支持股票）
          accountid = self.account,
          orderCode = code,
          prType = 7, # 下单选价类型：6：买1价；7：买2价
          price = 0,
-         volume = position,
+         volume = amount,
          ContextInfo= self.context )
         """
 
@@ -208,27 +228,27 @@ class Broker():
             return False
 
         postions = get_trade_detail_data(self.account, 'stock', 'position')
-        available_position = None
+        available_amount = None
         for p in postions:
             # logger.debug("卖出：%s ：%.0f", p.m_strInstrumentID, p.m_nVolume)
             # code是510500.SH，但是m_strInstrumentID是510500，所以只取前6位
-            if p.m_strInstrumentID == code[0:6] and p.m_nVolume < position:
-                available_position = p.m_nVolume
-            if p.m_strInstrumentID == code[0:6] and p.m_nVolume >= position:
-                available_position = position
+            if p.m_strInstrumentID == code[0:6] and p.m_dMarketValue < amount:
+                available_amount = p.m_dMarketValue
+            if p.m_strInstrumentID == code[0:6] and p.m_dMarketValue >= amount:
+                available_amount = amount
 
-        if available_position is None:
-            logger.warning("账号%s于%s日卖出基金%s %.0f股失败：没有持仓", self.account, date2str(date), code, position)
+        if available_amount is None:
+            logger.warning("账号%s于%s日卖出基金%s %.0f元失败：没有持仓", self.account, date2str(date), code, amount)
             return False
 
-        old_postions = get_trade_detail_data(self.account, 'stock', 'position')
         order_time = time.strftime('%Y%m%d%H%M%S', time.localtime(time.time()))
         order_id = f"{order_time}_{code}_{POLICY_NAME}"
 
-        # 按照买2价进行买入，没选买1，保险起见
-        passorder(24, 1101, self.account, code, 7, 0, available_position, POLICY_NAME, 1, order_id, self.context)
+        # 1102：使用金额方式卖出，买卖都是按照金额来的了
+        # 按照买2价进行买入，没选买1，保险起见，quickTrade=1：可以立刻让订单生效，而不用等到bar的最后一个tick
+        passorder(24, 1102, self.account, code, 7, 0, available_amount, POLICY_NAME, 1, order_id, self.context)
 
-        msg = "账号%s于%s日按照买2价，卖出基金%s %.0f股" % (self.account, date2str(date), code, available_position)
+        msg = "账号%s于%s日按照买2价，卖出基金%s %.0f元" % (self.account, date2str(date), code, available_amount)
         logger.info(msg)
         weixin('detail', msg)
         mail(f'[{POLICY_NAME}] 创建卖单', msg)
@@ -450,7 +470,6 @@ def __handlebar(C):
     now_time = now.strftime('%H%M%S')
     if _is_realtime(C) and (now_time < '093000' or now_time > "150000"):
         logger.warning("不在交易时间：%s", now_time)
-        # TODO，注释掉，方便测试
         return
 
     """
