@@ -57,6 +57,7 @@ class PyramidV2Strategy(Strategy):
                  args,
                  last_grid_position_file_path=None):
         super().__init__(broker, None)
+        self.args = args
         self.grid_height = args.grid_height  # 上涨时候网格高度，百分比，如0.008
         self.quantile_positive = args.quantile_positive
         self.quantile_negative = args.quantile_negative
@@ -191,7 +192,7 @@ class PyramidV2Strategy(Strategy):
                 current_grid_position < self.negative_threshold_dict[code]:
             # 根据偏离均线幅度，决定购买的份数
             # 买入
-            if self.broker.buy(code,today,amount=amount):
+            if self.broker.buy(code,today,amount=amount * self.args.buy_factor):
                 msg = "[%s] %s当前价格[%.4f]，距离均线[%.4f]，距离百分比[%.1f%%]，距离[%d]格,低于上次[第%d格],买入%.1f元  基<---钱" % (
                              date2str(today),
                              code,
@@ -218,7 +219,7 @@ class PyramidV2Strategy(Strategy):
                 current_grid_position > self.positive_threshold_dict[code]:
 
             # 扣除手续费后，下取整算购买份数
-            if self.broker.sell(code, today, amount=amount*2):
+            if self.broker.sell(code, today, amount=amount * self.args.sell_factor):
                 msg = "[%s] %s当前价格[%.4f],距离均线[%.4f],距离百分比[%.1f%%],距离[%d]格,高于上次[第%d格],卖出%.1f元  基===>钱" % (
                         date2str(today),
                         code,

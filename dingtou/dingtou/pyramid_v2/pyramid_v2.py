@@ -78,15 +78,19 @@ def print_trade_details(start_date, end_date, amount, df_baseline, fund_dict, df
     broker.df_trade_history['year'] = broker.df_trade_history.actual_date.dt.year
     print("年投资金额统计：")
     df_year_amount = broker.df_trade_history.groupby('year').sum()['amount']
-    print("最多投资：",df_year_amount.max())
-    print("最少投资：", df_year_amount.min())
-    print("平均投资：", df_year_amount.mean())
+    print("\t本金合计：", banker.debt)
+    print("\t累计投出：", df_year_amount.sum())
+    print("\t最多投资：",df_year_amount.max())
+    print("\t最少投资：", df_year_amount.min())
+    print("\t平均投资：", df_year_amount.mean())
+    print("详细：")
     print(df_year_amount)
     df_year_trade= broker.df_trade_history.groupby('year').count()['actual_date']
     print("每年投资次数统计：")
-    print("最多次数：",df_year_trade.max())
-    print("最少次数：", df_year_trade.min())
-    print("平均次数：", df_year_trade.mean())
+    print("\t最多次数：",df_year_trade.max())
+    print("\t最少次数：", df_year_trade.min())
+    print("\t平均次数：", df_year_trade.mean())
+    print("详细：")
     print(df_year_trade)
 
 
@@ -151,17 +155,25 @@ def main(args):
 
 
 """
+# 17只挑选出来的主流（市值大、时间长>3年）
+# 510330,510500,159915,588090,512880,512200,512660,512010,512800,512690,510810,512980,512760,159928,515000,516160,512580
+# 主要4只指数基金：
+# 510500,510330,159915,588090
+# 10年收益>5%的：
+# 512690,512580,512660,159915,159928,510330,510500
 python -m dingtou.pyramid_v2.pyramid_v2 \
-    -c 510500,510330,159915,588090 \
+    -c 512690,512580,512660,159915,159928,510330,510500 \
     -s 20130101 \
     -e 20230101 \
     -b sh000001 \
     -a 0 \
     -m 850 \
-    -ga 1000 \
+    -ga 500 \
     -gh 0.01 \
     -qn 0.4 \
     -qp 0.8 \
+    -bf 1 \
+    -sf 1 \
     -bk
 """
 if __name__ == '__main__':
@@ -180,6 +192,8 @@ if __name__ == '__main__':
     parser.add_argument('-ga', '--grid_amount', type=int, default=None, help="每格子的基础金额")
     parser.add_argument('-qn', '--quantile_negative', type=float, default=0.3, help="均线下百分数区间")
     parser.add_argument('-qp', '--quantile_positive', type=float, default=0.3, help="均线上百分数区间")
+    parser.add_argument('-bf', '--buy_factor', type=float, default=1, help="几倍的买")
+    parser.add_argument('-sf', '--sell_factor', type=float, default=1, help="几倍的卖")
 
     args = parser.parse_args()
     print(args)
