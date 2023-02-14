@@ -248,10 +248,11 @@ class Broker():
         # 按照买2价进行买入，没选买1，保险起见，quickTrade=1：可以立刻让订单生效，而不用等到bar的最后一个tick
         passorder(24, 1102, self.account, code, 7, 0, available_amount, POLICY_NAME, 1, order_id, self.context)
 
-        msg = "账号%s于%s日按照买2价，卖出基金%s %.0f元" % (self.account, date2str(date), code, available_amount)
+        msg = "账号%s于%s日按照买2价，卖出基金%s %.0f元，订单号[%s]" % (self.account, date2str(date), code, available_amount,order_id)
         logger.info(msg)
         weixin('detail', msg)
         mail(f'[{POLICY_NAME}] 创建卖单', msg)
+        plusplus_msg('创建买单',msg)
 
         postions = get_trade_detail_data(self.account, 'stock', 'position')
         for p in postions:
@@ -260,6 +261,15 @@ class Broker():
 
         return True
 
+def plusplus_msg(title,msg,topic='signal'):
+    try:
+        # http://www.pushplus.plus/doc/guide/api.htm
+        token = conf['plusplus']['token']
+        url = f"http://www.pushplus.plus/send?token={token}&topic={topic}&title={title}&content={msg}&template=html"
+        requests.request("GET", url)
+    except Exception:
+        logger.exception("发往PlusPlus消息发生异常", msg)
+        return False
 
 def mail(title, msg):
     uid = conf['email']['uid']
@@ -406,8 +416,9 @@ def deal_callback(ContextInfo, dealInfo):
     logger.info("交易成功：")
     logger.info(headers)
     logger.info(data)
-    weixin('detail', f"[{POLICY_NAME}] 交易完成:\n{headers}\n{data}")
-    mail(f'[{POLICY_NAME}] 交易成功完成', f"{headers}\n{data}")
+    weixin('detail', f"[{POLICY_NAME}] 交易成功:\n{headers}\n{data}")
+    mail(f'[{POLICY_NAME}] 交易成功', f"{headers}\n{data}")
+    plusplus_msg('交易成功',f"{headers}\n{data}")
 
     flag_header = False
     if not os.path.exists(trans_log):
@@ -450,6 +461,7 @@ def handlebar(ContextInfo):
         msg = ''.join(list(traceback.format_exc()))
         weixin('error', msg)
         mail(f'[{POLICY_NAME}] 发生异常错误', msg)
+        plusplus_msg('发生异常',msg,'error')
         logger.exception("handlerbar异常")
 
 
@@ -498,6 +510,7 @@ def __handlebar(C):
             logger.warning(msg)
             weixin('detail', msg)
             mail(f'[{POLICY_NAME}] 请补充现金', msg)
+            plusplus_msg('提示补充现金',msg)
 
     # passorder(23,1101,A.acct,'588090.SH',3,0,100,C)
     for stock_code in A.stock_list:
@@ -528,6 +541,7 @@ def __handlebar(C):
         if msg:
             weixin('detail', f"[{POLICY_NAME}] 触发交易:\n{msg}")
             mail(f'[{POLICY_NAME}] 触发交易', f"{msg}")
+            plusplus_msg('策略触发交易',f"{msg}")
 
 
 
