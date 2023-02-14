@@ -26,9 +26,9 @@ logger = logging.getLogger(__name__)
 def backtest(df_baseline: DataFrame, funds_data: dict, args):
     banker = Banker() if args.bank else None
     broker = Broker(args.amount, banker)
-    broker.set_buy_commission_rate(0.0001)  # 参考华宝证券：ETF手续费万1，单笔最低0.2元
-    broker.set_sell_commission_rate(0)
-    backtester = BackTester(broker, args.start_date, args.end_date, buy_day='today')
+    broker.set_buy_commission_rate(0.0002)  # 参考华宝证券：ETF手续费万1，单笔最低0.2元
+    broker.set_sell_commission_rate(0.0002)
+    backtester = BackTester(broker, args.start_date, args.end_date, buy_day='today') # 当日的价格作为买卖价格
     strategy = PyramidV2Strategy(broker, args)
     backtester.set_strategy(strategy)
 
@@ -76,16 +76,22 @@ def print_trade_details(start_date, end_date, amount, df_baseline, fund_dict, df
     print(tabulate(broker.df_trade_history, headers='keys', tablefmt='psql'))
     # 打印交易统计
     broker.df_trade_history['year'] = broker.df_trade_history.actual_date.dt.year
-    print("年投资金额统计：")
-    df_year_amount = broker.df_trade_history.groupby('year').sum()['amount']
-    print("\t本金合计：", banker.debt)
-    print("\t累计投出：", df_year_amount.sum())
-    print("\t最多投资：",df_year_amount.max())
-    print("\t最少投资：", df_year_amount.min())
-    print("\t平均投资：", df_year_amount.mean())
+
+    print("投资金额统计：")
+    df_year_amount = broker.df_trade_history.groupby(['year','action']).sum()['amount']
+    df_amount = broker.df_trade_history['amount']
+    print("\t本金投入：", banker.debt)
+    print("\t累计投出：", df_amount.sum())
+    print("\t最多一次投资：",df_amount.max())
+    print("\t最少一次投资：", df_amount.min())
+    print("\t平均每次投资：", df_amount.mean())
+    print("\t年最多投资：",df_year_amount.max())
+    print("\t年最少投资：", df_year_amount.min())
+    print("\t年平均投资：", df_year_amount.mean())
     print("详细：")
     print(df_year_amount)
-    df_year_trade= broker.df_trade_history.groupby('year').count()['actual_date']
+
+    df_year_trade= broker.df_trade_history.groupby(['year','action']).count()['actual_date']
     print("每年投资次数统计：")
     print("\t最多次数：",df_year_trade.max())
     print("\t最少次数：", df_year_trade.min())
@@ -161,6 +167,8 @@ def main(args):
 # 510500,510330,159915,588090
 # 10年收益>5%的：
 # 512690,512580,512660,159915,159928,510330,510500
+
+# 最终最优的参数组合是：7只股票，[-0.4~0.8]的上下买卖阈值，850日均线，买卖倍数为1:2 ==> 7%
 python -m dingtou.pyramid_v2.pyramid_v2 \
     -c 512690,512580,512660,159915,159928,510330,510500 \
     -s 20130101 \
@@ -168,12 +176,12 @@ python -m dingtou.pyramid_v2.pyramid_v2 \
     -b sh000001 \
     -a 0 \
     -m 850 \
-    -ga 500 \
+    -ga 1000 \
     -gh 0.01 \
     -qn 0.4 \
     -qp 0.8 \
     -bf 1 \
-    -sf 1 \
+    -sf 2 \
     -bk
 """
 if __name__ == '__main__':
