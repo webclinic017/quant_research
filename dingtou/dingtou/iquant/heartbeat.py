@@ -69,17 +69,17 @@ def get_positions():
     position_info = get_trade_detail_data(A.account, 'stock', 'position')
     for i in position_info:
         r = {}
-        r['证券代码'] = i.m_strInstrumentID
-        r['证券名称'] = i.m_strInstrumentName
-        r['市场名称'] = i.m_strExchangeName
-        r['成交日期'] = i.m_strOpenDate
-        r['当前拥股'] = i.m_nVolume
-        r['持仓成本'] = i.m_dOpenPrice
-        r['成本价'] = i.m_dOpenCost
-        r['最新价'] = i.m_dSettlementPrice
-        r['盈亏'] = i.m_dFloatProfit
-        r['市值'] = i.m_dMarketValue
-        r['盈亏比例'] = i.m_dProfitRate
+        r['代码'] = i.m_strInstrumentID
+        r['名称'] = i.m_strInstrumentName
+        r['市场'] = i.m_strExchangeName
+        r['日期'] = i.m_strOpenDate
+        r['股数'] = i.m_nVolume
+        r['持仓成本'] = round(i.m_dOpenPrice,2)
+        r['成本价'] = round(i.m_dOpenCost,2)
+        r['最新价'] = round(i.m_dSettlementPrice,2)
+        r['盈亏'] = round(i.m_dFloatProfit,2)
+        r['市值'] = round(i.m_dMarketValue,2)
+        r['盈亏比例'] = round(i.m_dProfitRate,4)
         results.append(r)
     return results
 
@@ -89,8 +89,8 @@ def get_deals():
     deal_info = get_trade_detail_data(A.account, 'stock', 'DEAL')
     for i in deal_info:
         r = {}
-        r['证券代码'] = i.m_strInstrumentID
-        r['证券名称'] = i.m_strInstrumentName
+        r['代码'] = i.m_strInstrumentID
+        r['名称'] = i.m_strInstrumentName
         r['投资备注'] = i.m_strRemark
         r['合同编号'] = i.m_strOrderSysID
         r['订单编号'] = i.m_nRef
@@ -98,6 +98,10 @@ def get_deals():
         r['成交均价'] = i.m_dPrice
         r['成交量'] = i.m_nVolume
         r['成交额'] = i.m_dTradeAmount
+        r['买卖'] = i.m_strOptName
+        r['时间'] = i.m_strTradeTime
+        r['日期'] = i.rm_strTradeDate
+
         results.append(r)
     return results
 
