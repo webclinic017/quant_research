@@ -10,6 +10,7 @@ import requests
 import yaml
 import os
 import traceback
+import json
 
 import dingtou
 from dingtou.pyramid_v2.pyramid_v2_strategy import PyramidV2Strategy
@@ -23,6 +24,10 @@ logger = logging.getLogger(__name__)
 """
 # 实盘ETF定投策略：
     最终最优的参数组合是：7只股票，[-0.4~0.8]的上下买卖阈值，850日均线，买卖倍数为1:2 ==> 7%/年化（2013~2023）
+
+# 版本维护：
+- 2023.2.15 最后上线前的优化和调试，增加了plusplus发送，确认了前复权的正确性
+
 
 运行回测的参数：
 python -m dingtou.pyramid_v2.pyramid_v2 \
@@ -41,8 +46,8 @@ python -m dingtou.pyramid_v2.pyramid_v2 \
     -bk
 """
 
-# 设置所有的参数，这些参数都是经过回测的最优的，无需调整
-stocks = ["512690.SH","512580.SH","512660.SH","159915.SZ","159928.SZ","510330.SH","510500.SH"]
+# 设置所有的参数，这些参数都是经过回测的最优的，无需调整（20230215更新）
+stocks = ["512690.SH", "512580.SH", "512660.SH", "159915.SZ", "159928.SZ", "510330.SH", "510500.SH"]
 grid_height = 0.01
 grid_amount = 1000
 quantile_positive = 0.8
@@ -55,13 +60,13 @@ sell_factor = 2
 home_dir = "c:\\workspace\\iquant"
 log_dir = f"{home_dir}\\logs"
 conf_path = f"{home_dir}\\config.yml"
-trans_log_dir = f"{home_dir}\\history"
-trans_log = f"{trans_log_dir}\\transaction.csv"
-last_grid_position = f"{trans_log_dir}\\last_grid_position.json"
+data_dir = f"{home_dir}\\data"
+trans_log = f"{data_dir}\\transaction.csv"
+last_grid_position = f"{data_dir}\\last_grid_position.json"
 
 POLICY_NAME = 'ETF定投'
 MAX_TRADE_NUM_PER_DAY = 3  # 每天每只股票最大的交易次数（买和卖）
-MIN_CASH = 200000  # 小于这个资金，就要报警了，防止资金不够
+MIN_CASH = 200000  # 小于这个资金，就要报警了，防止资金不够，默认是300000比较合适，低于20万提醒，然后银转证到30万
 
 
 def load_conf():
@@ -143,7 +148,7 @@ class Broker():
         logger.debug("账号%s买入基金%s %.0f股",self.account,code,position)
         self.context.passorder(
          opType=23, # 股票买入，或沪港通、深港通股票买入
-         orderType=1101, # 单股、单账号、普通、股/手方式下单,
+         orderType=1101, # 1101 单股、单账号、普通、股/手方式下单, 1102：单股、单账号、普通、金额（元）方式下单（只支持股票）
          accountid =self.account,
          orderCode = code,
          prType = 3, # 下单选价类型,4：卖1价；3：卖2价
@@ -166,7 +171,7 @@ class Broker():
         # 这个是风控和防止bug的需要，防止一天不停的买，每次查下当日成交订单，超过3次就不让挂单了
         if self.check_max_trade(code):
             msg = "挂买单失败，超过当日允许的最大交易次数[%d次]：账号%s于%s日按照卖2价，买入基金%s: %.0f元" % (
-            MAX_TRADE_NUM_PER_DAY, self.account, date2str(date), code, amount)
+                MAX_TRADE_NUM_PER_DAY, self.account, date2str(date), code, amount)
             logger.info(msg)
             weixin('detail', msg)
             mail(f'[{POLICY_NAME}] 创建买单失败', msg)
@@ -175,30 +180,37 @@ class Broker():
         my_cash = self.get_available_cash()
         if my_cash < amount:
             msg = "挂买单失败，购买金额小于可用金额[%.2f]：账号%s于%s日按照卖2价，买入基金%s: %.0f元" % (
-            my_cash, self.account, date2str(date), code, amount)
+                my_cash, self.account, date2str(date), code, amount)
             logger.info(msg)
             weixin('detail', msg)
             mail(f'[{POLICY_NAME}] 创建买单失败', msg)
+            plusplus_msg('创建买单', msg, 'error')
             return False
 
         old_postions = get_trade_detail_data(self.account, 'stock', 'position')
         order_time = time.strftime('%Y%m%d%H%M%S', time.localtime(time.time()))
         order_id = f"{order_time}_{code}_{POLICY_NAME}"
 
-        # 按照金额来买
-        passorder(23,1102, self.account, code, 3, 0, amount, POLICY_NAME,1,order_id,self.context)
+        # 23:股票;1102按金额买卖;3:卖2单；1:立刻生效
+        passorder(23, 1102, self.account, code, 3, 0, amount, POLICY_NAME, 1, order_id, self.context)
 
         msg = "账号%s于%s日按照卖2价，买入基金%s: %.0f元" % (self.account, date2str(date), code, amount)
         logger.info(msg)
         weixin('detail', msg)
         mail(f'[{POLICY_NAME}] 创建买单(仅下单)', msg)
+        plusplus_msg('创建买单', msg)
 
         postions = get_trade_detail_data(self.account, 'stock', 'position')
+
+        time.sleep(1)  # 等1秒
         for p in old_postions:
+            if p.m_strInstrumentID != code: continue
             # 买入前，打印一下旧的持仓
             logger.info("买入前，持仓：%s : %.0f股", p.m_strInstrumentID, p.m_nVolume)
+
         for p in postions:
             # 买入后，打印一下新的持仓
+            if p.m_strInstrumentID != code: continue
             logger.info("买入后，持仓：%s : %.0f股", p.m_strInstrumentID, p.m_nVolume)
         return True
 
@@ -221,13 +233,13 @@ class Broker():
         # 这个是风控和防止bug的需要，防止一天不停的买，每次查下当日成交订单，超过3次就不让挂单了
         if self.check_max_trade(code):
             msg = "挂卖单失败，超过当日允许的最大交易次数[%d次]：账号%s于%s日按照买2价，买入基金%s: %.0f元" % (
-            MAX_TRADE_NUM_PER_DAY, self.account, date2str(date), code, amount)
+                MAX_TRADE_NUM_PER_DAY, self.account, date2str(date), code, amount)
             logger.info(msg)
             weixin('detail', msg)
             mail(f'[{POLICY_NAME}] 创建卖单失败', msg)
             return False
 
-        postions = get_trade_detail_data(self.account, 'stock', 'position')
+        old_postions = postions = get_trade_detail_data(self.account, 'stock', 'position')
         available_amount = None
         for p in postions:
             # logger.debug("卖出：%s ：%.0f", p.m_strInstrumentID, p.m_nVolume)
@@ -248,28 +260,55 @@ class Broker():
         # 按照买2价进行买入，没选买1，保险起见，quickTrade=1：可以立刻让订单生效，而不用等到bar的最后一个tick
         passorder(24, 1102, self.account, code, 7, 0, available_amount, POLICY_NAME, 1, order_id, self.context)
 
-        msg = "账号%s于%s日按照买2价，卖出基金%s %.0f元，订单号[%s]" % (self.account, date2str(date), code, available_amount,order_id)
+        msg = "账号%s于%s日按照买2价，卖出基金%s %.0f元，订单号[%s]" % (
+            self.account, date2str(date), code, available_amount, order_id)
         logger.info(msg)
         weixin('detail', msg)
         mail(f'[{POLICY_NAME}] 创建卖单', msg)
-        plusplus_msg('创建买单',msg)
+        plusplus_msg('创建卖单', msg)
 
         postions = get_trade_detail_data(self.account, 'stock', 'position')
+
+        time.sleep(1)  # 等1秒
+        for p in old_postions:
+            if p.m_strInstrumentID != code: continue
+            # 买入前，打印一下旧的持仓
+            logger.info("买入前，持仓：%s : %.0f股", p.m_strInstrumentID, p.m_nVolume)
+
         for p in postions:
             # 买入后，打印一下新的持仓
-            logger.info("卖出后，持仓：%s : %.0f股", p.m_strInstrumentID, p.m_nVolume)
+            if p.m_strInstrumentID != code: continue
+            logger.info("买入后，持仓：%s : %.0f股", p.m_strInstrumentID, p.m_nVolume)
+        return True
 
         return True
 
-def plusplus_msg(title,msg,topic='signal'):
+
+def plusplus_msg(title, msg, topic='signal'):
     try:
         # http://www.pushplus.plus/doc/guide/api.htm
-        token = conf['plusplus']['token']
-        url = f"http://www.pushplus.plus/send?token={token}&topic={topic}&title={title}&content={msg}&template=html"
-        requests.request("GET", url)
+        url = 'http://www.pushplus.plus/send'
+        data = {
+            "token": conf['plusplus']['token'],
+            "title": title,
+            "content": msg,
+            "topic": topic
+        }
+        body = json.dumps(data).encode(encoding='utf-8')
+        headers = {'Content-Type': 'application/json'}
+        response = requests.post(url, data=body, headers=headers)
+        data = response.json()
+        if data and data.get("code", None) and data["code"] == 200:
+            return
+        if data and data.get("code", None):
+            logger.warning("发往PlusPlus消息错误: code=%r, msg=%s, token=%s, topic=%s",
+                           data['code'], data['msg'], conf['plusplus']['token'][:10] + "...", topic)
+        else:
+            logger.warning("发往PlusPlus消息错误: 返回为空")
     except Exception:
         logger.exception("发往PlusPlus消息发生异常", msg)
         return False
+
 
 def mail(title, msg):
     uid = conf['email']['uid']
@@ -336,7 +375,9 @@ A = a()
 def init(ContextInfo):
     logger.info('策略开始初始化...')
 
-    init_logger(logging.DEBUG)
+    init_logger(logging.INFO)
+
+    plusplus_msg('标题', f'内容123')
 
     # 不知为何，实盘无法reload包
     if not _is_realtime(ContextInfo):
@@ -345,8 +386,8 @@ def init(ContextInfo):
         reload(dingtou.utils.utils)
         logger.info("重新加载python包")
 
-    if not os.path.exists(trans_log_dir):
-        os.makedirs(trans_log_dir)
+    if not os.path.exists(data_dir):
+        os.makedirs(data_dir)
 
     A.acct = conf['account']  # 账号为模型交易界面选择账号
     A.acct_type = 'stock'  # 账号类型为模型交易界面选择账号
@@ -388,7 +429,7 @@ def get_last_price(ContextInfo, stock_code):
         stock_code=[stock_code],
         count=1,
         period=period,
-        dividend_type='back')
+        dividend_type='front')# 必须前复权，后复权有重大问题，会导致偏离均线很大，导致错误交易,20230215
 
     logger.debug("获取[%s]%s日的(%s)价格:%.2f", stock_code, df.iloc[0].name, period, df.iloc[0].item())
 
@@ -418,7 +459,7 @@ def deal_callback(ContextInfo, dealInfo):
     logger.info(data)
     weixin('detail', f"[{POLICY_NAME}] 交易成功:\n{headers}\n{data}")
     mail(f'[{POLICY_NAME}] 交易成功', f"{headers}\n{data}")
-    plusplus_msg('交易成功',f"{headers}\n{data}")
+    plusplus_msg('交易成功', f"{headers}\n{data}")
 
     flag_header = False
     if not os.path.exists(trans_log):
@@ -440,12 +481,15 @@ def load_data(C, stock_code, today):
         return df
 
     # 如果和今天不一样，就需要重新加载数据
+    start_date = str(C.get_open_date(stock_code))
     df = C.get_market_data(
         fields=['close'],
         stock_code=[stock_code],
+        start_time=start_date,  # 必须要制定上市时间，否则，给我返回一堆的填充数，比如2019年上市，如果2400，返回2013的数，全是假的
         count=2400,  # 为了要找出很长的历史下的80%和20%分位数，需要加载十年的，其实只有8年的数据，因为有2年需要做移动平均，都是na
         period='1d',  # 这个会获得当天的信息
         dividend_type='front')  # 采用了前复权，主要是为了获得最新的价格
+    df.to_csv(f"{data_dir}\\{stock_code}.csv")
     # 替换掉旧的数据
     A.data[stock_code] = df
 
@@ -461,7 +505,7 @@ def handlebar(ContextInfo):
         msg = ''.join(list(traceback.format_exc()))
         weixin('error', msg)
         mail(f'[{POLICY_NAME}] 发生异常错误', msg)
-        plusplus_msg('发生异常',msg,'error')
+        plusplus_msg('发生异常', msg, 'error')
         logger.exception("handlerbar异常")
 
 
@@ -510,7 +554,7 @@ def __handlebar(C):
             logger.warning(msg)
             weixin('detail', msg)
             mail(f'[{POLICY_NAME}] 请补充现金', msg)
-            plusplus_msg('提示补充现金',msg)
+            plusplus_msg('提示补充现金', msg)
 
     # passorder(23,1101,A.acct,'588090.SH',3,0,100,C)
     for stock_code in A.stock_list:
@@ -541,9 +585,4 @@ def __handlebar(C):
         if msg:
             weixin('detail', f"[{POLICY_NAME}] 触发交易:\n{msg}")
             mail(f'[{POLICY_NAME}] 触发交易', f"{msg}")
-            plusplus_msg('策略触发交易',f"{msg}")
-
-
-
-
-
+            plusplus_msg('策略触发交易', f"{msg}")

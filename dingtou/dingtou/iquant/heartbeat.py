@@ -13,9 +13,9 @@ logger = logging.getLogger(__name__)
 home_dir = "c:\\workspace\\iquant"
 log_dir = f"{home_dir}\\logs"
 conf_path = f"{home_dir}\\config.yml"
-trans_log_dir = f"{home_dir}\\history"
-trans_log = f"{trans_log_dir}\\transaction.csv"
-last_grid_position = f"{trans_log_dir}\\last_grid_position.json"
+data_dir = f"{home_dir}\\data"
+trans_log = f"{data_dir}\\transaction.csv"
+last_grid_position = f"{data_dir}\\last_grid_position.json"
 
 POLICY_NAME = 'ÐÄÌø'
 
