@@ -74,11 +74,11 @@ def get_positions():
         r['市场'] = i.m_strExchangeName
         r['日期'] = i.m_strOpenDate
         r['股数'] = i.m_nVolume
-        r['持仓成本'] = round(i.m_dOpenPrice,2)
-        r['成本价'] = round(i.m_dOpenCost,2)
-        r['最新价'] = round(i.m_dSettlementPrice,2)
-        r['盈亏'] = round(i.m_dFloatProfit,2)
-        r['市值'] = round(i.m_dMarketValue,2)
+        r['持仓成本'] = round(i.m_dOpenPrice,4)
+        r['成本价'] = round(i.m_dOpenCost,4)
+        r['最新价'] = round(i.m_dSettlementPrice,4)
+        r['盈亏'] = round(i.m_dFloatProfit,4)
+        r['市值'] = round(i.m_dMarketValue,4)
         r['盈亏比例'] = round(i.m_dProfitRate,4)
         results.append(r)
     return results
@@ -100,7 +100,7 @@ def get_deals():
         r['成交额'] = i.m_dTradeAmount
         r['买卖'] = i.m_strOptName
         r['时间'] = i.m_strTradeTime
-        r['日期'] = i.rm_strTradeDate
+        r['日期'] = i.m_strTradeDate
 
         results.append(r)
     return results
