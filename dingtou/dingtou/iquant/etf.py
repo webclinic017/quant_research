@@ -27,6 +27,9 @@ logger = logging.getLogger(__name__)
 
 # 版本维护：
 - 2023.2.15 最后上线前的优化和调试，增加了plusplus发送，确认了前复权的正确性
+- 2023.2.16 
+    - 上线后异常修复，PyramidV2Strategy构造函数参数不匹配导致
+    - 修改了提示，只提示缺少资金1次，用is_new_bar
 
 
 运行回测的参数：
@@ -48,13 +51,15 @@ python -m dingtou.pyramid_v2.pyramid_v2 \
 
 # 设置所有的参数，这些参数都是经过回测的最优的，无需调整（20230215更新）
 stocks = ["512690.SH", "512580.SH", "512660.SH", "159915.SZ", "159928.SZ", "510330.SH", "510500.SH"]
-grid_height = 0.01
-grid_amount = 1000
-quantile_positive = 0.8
-quantile_negative = 0.4
-ma_days = 850
-buy_factor = 1
-sell_factor = 2
+class Args():
+    grid_height = 0.01
+    grid_amount = 1000
+    quantile_positive = 0.8
+    quantile_negative = 0.4
+    ma = 850
+    buy_factor = 1
+    sell_factor = 2
+args = Args()
 
 # 设置所有的目录
 home_dir = "c:\\workspace\\iquant"
@@ -377,8 +382,6 @@ def init(ContextInfo):
 
     init_logger(logging.INFO)
 
-    plusplus_msg('标题', f'内容123')
-
     # 不知为何，实盘无法reload包
     if not _is_realtime(ContextInfo):
         reload(dingtou)
@@ -401,17 +404,12 @@ def init(ContextInfo):
     ContextInfo.sell = True
 
     logger.info("设置股票池：%r", ContextInfo.trade_code_list)
-    policy = PositionCalculator(grid_amount)
+    policy = PositionCalculator(args.grid_amount)
 
     A.broker = Broker(A.acct)
     A.strategy = PyramidV2Strategy(
         A.broker,
-        policy,
-        grid_height,
-        quantile_positive,
-        quantile_negative,
-        ma_days,
-        None,
+        args,
         last_grid_position  # 记录每只基金的最后的grid位置的json文件
     )
     logger.info('策略初始化完毕')
@@ -544,17 +542,17 @@ def __handlebar(C):
         logger.warning(f'账号{A.acct} 未登录 请检查')
         return
 
-    # 开盘后和收盘前，如果资金不足，就提醒
-    if _is_realtime(C) and (now_time[:4] == '0931' or now_time[:4] == "1459"):
+    # 开盘后和收盘前，如果资金不足，就提醒，is_new_bar来提醒一次
+    if _is_realtime(C) and C.is_new_bar() and (now_time[:4] == '0931' or now_time[:4] == "1459"):
         account = account[0]
         available_cash = int(account.m_dAvailable)
         # logger.debug("交易日期: %s, 账号：%s,可用资金：%.2f",date, A.acct, available_cash)
         if available_cash < MIN_CASH:
-            msg = "现金不足：当前现金 %.0f 元 < 最少的要求 %.0f 元" % (available_cash, MIN_CASH)
+            msg = "现金不足：当前现金 %.0f 元 < 最少的要求 %.0f 元，请补充现金" % (available_cash, MIN_CASH)
             logger.warning(msg)
             weixin('detail', msg)
             mail(f'[{POLICY_NAME}] 请补充现金', msg)
-            plusplus_msg('提示补充现金', msg)
+            plusplus_msg('请补充现金', msg)
 
     # passorder(23,1101,A.acct,'588090.SH',3,0,100,C)
     for stock_code in A.stock_list:
@@ -586,3 +584,7 @@ def __handlebar(C):
             weixin('detail', f"[{POLICY_NAME}] 触发交易:\n{msg}")
             mail(f'[{POLICY_NAME}] 触发交易', f"{msg}")
             plusplus_msg('策略触发交易', f"{msg}")
+
+
+
+
