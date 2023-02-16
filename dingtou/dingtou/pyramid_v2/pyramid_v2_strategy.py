@@ -75,10 +75,6 @@ class PyramidV2Strategy(Strategy):
 
         self.ma_days = args.ma
 
-        if type(args.end_date) == str: end_date = utils.str2date(args.end_date)
-        self.end_date = end_date
-
-
         # 统计用
         self.buy_ok = 0
         self.sell_ok = 0
