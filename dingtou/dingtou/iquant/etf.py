@@ -30,7 +30,8 @@ logger = logging.getLogger(__name__)
 - 2023.2.16 
     - 上线后异常修复，PyramidV2Strategy构造函数参数不匹配导致
     - 修改了提示，只提示缺少资金1次，用is_new_bar
-
+- 2023.2.18
+    - 增加了开盘、收盘发送一下仓位情况
 
 运行回测的参数：
 python -m dingtou.pyramid_v2.pyramid_v2 \
@@ -71,7 +72,7 @@ last_grid_position = f"{data_dir}\\last_grid_position.json"
 
 POLICY_NAME = 'ETF定投'
 MAX_TRADE_NUM_PER_DAY = 3  # 每天每只股票最大的交易次数（买和卖）
-MIN_CASH = 200000  # 小于这个资金，就要报警了，防止资金不够，默认是300000比较合适，低于20万提醒，然后银转证到30万
+MIN_CASH = 80000  # 小于这个资金，就要报警了，防止资金不够，默认是300000比较合适，低于20万提醒，然后银转证到30万
 
 
 def load_conf():
@@ -506,6 +507,13 @@ def handlebar(ContextInfo):
         plusplus_msg('发生异常', msg, 'error')
         logger.exception("handlerbar异常")
 
+def get_account_info():
+    result = ''
+    account_info = get_trade_detail_data(A.account, 'stock', 'account')
+    for i in account_info:
+        info = f'总资产:{i.m_dBalance},可用金额:{i.m_dAvailable},总市值:{i.m_dInstrumentValue},总盈亏:{i.m_dPositionProfit}'
+        result+=f'{info}\n'
+    return result
 
 def __handlebar(C):
     # 实盘/模拟盘的时候，从2015开始，所以需要跳过历史k线，
@@ -522,6 +530,29 @@ def __handlebar(C):
     # 跳过非交易时间
     now = datetime.datetime.now()
     now_time = now.strftime('%H%M%S')
+
+    # 开盘后和收盘前，如果资金不足，就提醒，is_new_bar来提醒一次
+    # 另外，必须是9:30分，因为生产环境下，handlebar 才会被触发，开盘前，不会运行handlebar的
+    if _is_realtime(C) and C.is_new_bar() and (now_time[:4] == '0930' or now_time[:4] == "1459"):
+        account = get_trade_detail_data(A.acct, A.acct_type, 'account')
+        account = account[0]
+        available_cash = int(account.m_dAvailable)
+
+        # 每天开始和结束，都发送一遍我的资产信息
+        account_information = get_account_info()
+        logger.info("[%s] 发送账户信息：%s",now_time,account_information)
+        weixin('detail', account_information)
+        mail(f'[{POLICY_NAME}] 账户信息更新', account_information)
+        plusplus_msg('账户信息更新', account_information)
+
+        # logger.debug("交易日期: %s, 账号：%s,可用资金：%.2f",date, A.acct, available_cash)
+        if available_cash < MIN_CASH:
+            msg = "现金不足：当前现金 %.0f 元 < 最少的要求 %.0f 元，请补充现金" % (available_cash, MIN_CASH)
+            logger.warning(msg)
+            weixin('detail', msg)
+            mail(f'[{POLICY_NAME}] 请补充现金', msg)
+            plusplus_msg('请补充现金', msg)
+
     if _is_realtime(C) and (now_time < '093000' or now_time > "150000"):
         logger.warning("不在交易时间：%s", now_time)
         return
@@ -541,18 +572,6 @@ def __handlebar(C):
     if len(account) == 0:
         logger.warning(f'账号{A.acct} 未登录 请检查')
         return
-
-    # 开盘后和收盘前，如果资金不足，就提醒，is_new_bar来提醒一次
-    if _is_realtime(C) and C.is_new_bar() and (now_time[:4] == '0931' or now_time[:4] == "1459"):
-        account = account[0]
-        available_cash = int(account.m_dAvailable)
-        # logger.debug("交易日期: %s, 账号：%s,可用资金：%.2f",date, A.acct, available_cash)
-        if available_cash < MIN_CASH:
-            msg = "现金不足：当前现金 %.0f 元 < 最少的要求 %.0f 元，请补充现金" % (available_cash, MIN_CASH)
-            logger.warning(msg)
-            weixin('detail', msg)
-            mail(f'[{POLICY_NAME}] 请补充现金', msg)
-            plusplus_msg('请补充现金', msg)
 
     # passorder(23,1101,A.acct,'588090.SH',3,0,100,C)
     for stock_code in A.stock_list:
@@ -584,6 +603,7 @@ def __handlebar(C):
             weixin('detail', f"[{POLICY_NAME}] 触发交易:\n{msg}")
             mail(f'[{POLICY_NAME}] 触发交易', f"{msg}")
             plusplus_msg('策略触发交易', f"{msg}")
+
 
 
 
