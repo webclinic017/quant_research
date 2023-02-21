@@ -37,7 +37,7 @@ def calculte_stock_rsrs(code, params):
 
 def calculate_rsrs(df, params):
     """
-            loc = df.index.get_loc(today)
+    loc = df.index.get_loc(today)
     df_recent = df.iloc[loc - params.N:loc]
 
     https://zhuanlan.zhihu.com/p/33501881

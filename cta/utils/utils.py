@@ -298,6 +298,7 @@ def calc_size(cash, price, commission_rate):
 def OLS(X, y):
     """
     做线性回归，返回 β0（截距）、β1（系数）和残差
+    y = β0 + x1*β1 + epsilon
     参考：https://blog.csdn.net/chongminglun/article/details/104242342
     :param X: shape(N,M)，M位X的维度，一般M=1
     :param y: shape(N)

@@ -480,7 +480,7 @@ def load_data(C, stock_code, today):
         return df
 
     # 如果和今天不一样，就需要重新加载数据
-    start_date = str(C.get_open_date(stock_code))
+    start_date = str(C.get_open_date(stock_code))# 得到上市日期
     df = C.get_market_data(
         fields=['close'],
         stock_code=[stock_code],
@@ -509,7 +509,7 @@ def handlebar(ContextInfo):
 
 def get_account_info():
     result = ''
-    account_info = get_trade_detail_data(A.account, 'stock', 'account')
+    account_info = get_trade_detail_data(A.acct, 'stock', 'account')
     for i in account_info:
         info = f'总资产:{i.m_dBalance},可用金额:{i.m_dAvailable},总市值:{i.m_dInstrumentValue},总盈亏:{i.m_dPositionProfit}'
         result+=f'{info}\n'

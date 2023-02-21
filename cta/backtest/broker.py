@@ -481,6 +481,9 @@ class Broker:
         if df_market_value is None: return None
         return df_market_value.iloc[-1].position_value
 
+    def get_position(self, code):
+        return self.positions.get(code, None)
+
     def get_total_position_value(self):
         """最新的总仓位值：仅持仓"""
         return self.df_total_market_value.iloc[-1].total_position_value

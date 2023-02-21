@@ -65,14 +65,14 @@ def load_stocks(codes, ma_days):
     return data
 
 
-def load_stock(code):
+def load_stock(code,adjust='qfq'):
     """加载股票数据"""
     # 调通用加载函数，加载数据
     df = load(name=code,
               func=ak.stock_zh_a_hist,
               symbol=code,
               period="daily",
-              adjust="qfq")
+              adjust=adjust)
     # 修改列名（为了兼容backtrader的要求的列名），以及转日期列为日期格式，并，设置日期列为索引列
     df['日期'] = pd.to_datetime(df['日期'], format='%Y-%m-%d')
     df.rename(columns={'日期': 'date',

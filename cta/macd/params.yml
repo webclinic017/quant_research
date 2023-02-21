@@ -1,0 +1,11 @@
+start_date: "20130101"
+end_date: "20230101"
+baseline: 'sh000001'
+amount: 500000 # 初始总现金
+code: '603233'
+fastperiod: 12
+slowperiod: 26
+signalperiod: 9
+slope_windows: 3
+slope_threshold: 0.1
+limit_loss: -0.05
