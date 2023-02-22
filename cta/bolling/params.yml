@@ -1,0 +1,9 @@
+start_date: "20130101"
+end_date: "20230101"
+baseline: 'sh000001'
+amount: 500000 # 初始总现金
+code: '600196'
+limit_loss: -0.05
+bolling_ma: 20
+bolling_std: 2
+sell_flag: 'lower' # lower | middle 跌破中轨还是下轨？

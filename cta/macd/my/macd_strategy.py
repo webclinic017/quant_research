@@ -51,7 +51,8 @@ class MACDStrategy(Strategy):
         # print(today_loc,yesterday,yesterday_macd," vs ",today,today_macd)
 
         # 绿柱变小，上升趋势，考虑买入
-        if today_macd < 0 and today_macd > yesterday_macd and today_slope > self.params.slope_threshold:
+        if today_macd < 0 and today_macd > yesterday_macd and s_today.rsi<=30:
+            #and today_slope > self.params.slope_threshold:
             if self.broker.get_position(code):
                 logger.debug("今日[%s]macd[%.4f] > 昨日[%s]macd[%.4f]，但是由于持仓[%s]，忽略买点",
                              date2str(today), today_macd,
@@ -68,28 +69,35 @@ class MACDStrategy(Strategy):
             return
             # TODO，当日可以买回
 
-        # 红柱变小，准备卖出
-        if today_macd >= 0 and yesterday_macd > today_macd:
-            if self.broker.get_position(code):
-                self.broker.sell_out(code, trade_date)
-                logger.debug("今日[%s]macd[%.4f] < 昨日[%s]macd[%.4f]，清仓[%s]",
-                             date2str(today), today_macd,
-                             date2str(yesterday), yesterday_macd,
-                             code)
-                return
-            else:
-                # logger.debug("今日[%s]macd[%.4f] < 昨日[%s]macd[%4.f]，清仓，未持有[%s]",
-                #              date2str(today), today_macd,
-                #              date2str(yesterday), yesterday_macd,
-                #              code)
-                return
-
         position = self.broker.get_position(code)
+        # 如果持仓，绿柱变大，判断失败（应该是一路变小，然后翻红，直至红柱变小），应该卖出
+        if position and today_macd < 0 and today_macd < yesterday_macd:
+            self.broker.sell_out(code, trade_date)
+            logger.debug("今日[%s]macd[%.4f] < 昨日[%s]macd[%.4f](绿柱变高)，清仓[%s]",
+                         date2str(today), today_macd,
+                         date2str(yesterday), yesterday_macd,
+                         code)
+            return
+
+
+
+        # 红柱变小，准备卖出
+        if position and today_macd >= 0 and today_macd < yesterday_macd:
+            self.broker.sell_out(code, trade_date)
+            logger.debug("今日[%s]macd[%.4f] < 昨日[%s]macd[%.4f](红柱变低)，清仓[%s]",
+                         date2str(today), today_macd,
+                         date2str(yesterday), yesterday_macd,
+                         code)
+            return
+
+        # 如果持仓，看是否到止损，到止损，就需要卖出清仓了
+        # 按理说应该是盘中止损，但是，我的框架模拟不出来，只好第二天再止损
+        # 看今天的收盘价已经超过损失了
         if position:
             loss = (s_today.close - position.cost)/position.cost
             # loss和阈值都是负的，所以要小于阈值
             if loss < self.params.limit_loss:
                 logger.warning("[%s] [%s]今日价格[%.4f]对比成本[%.4f]，损失超过[%.2f%%]，止损清仓",
                                date2str(today),code,s_today.close,position.cost,loss*100)
-                self.broker.sell_out(code,today)
+                self.broker.sell_out(code,trade_date)
 

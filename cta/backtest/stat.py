@@ -76,6 +76,18 @@ def calculate_metrics(df_portfolio, df_baseline, df_data, broker, initial_amount
         stat["卖次"] = len(broker.df_trade_history[
                            (broker.df_trade_history.code == code) &
                            (broker.df_trade_history.action == 'sell')])
+        win = len(broker.df_trade_history[
+                           (broker.df_trade_history.code == code) &
+                           (broker.df_trade_history.action == 'sell') &
+                           (broker.df_trade_history.pnl >0) ])
+        loss = len(broker.df_trade_history[
+                           (broker.df_trade_history.code == code) &
+                           (broker.df_trade_history.action == 'sell') &
+                           (broker.df_trade_history.pnl <0) ])
+        stat["盈次"] = win
+        stat["输次"] = loss
+        stat["胜率"] = win/(win+loss)
+
     else:
         stat["买次"] = len(broker.df_trade_history[broker.df_trade_history.action == 'buy'])
         stat["卖次"] = len(broker.df_trade_history[broker.df_trade_history.action == 'sell'])

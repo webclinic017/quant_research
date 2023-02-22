@@ -17,6 +17,7 @@ def macd(df, params):
     df['ma10'] = talib.SMA(df.close, 10)
     df['ma20'] = talib.SMA(df.close, 20)
     df['slope'] = claculate_slope(df.close, params)
+    df['rsi'] = talib.RSI(df.close)
     return df
 
 

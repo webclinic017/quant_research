@@ -18,7 +18,8 @@ class Trade:
         self.actual_date = None  # 实际成交日期，一般都会是target_date，除非遭遇停牌之类
         self.amount = amount  # 买了多少钱
         self.position = position  # 买了多少份
-        self.price = -1  # 成交的价格
+        self.price = -9999999  # 成交的价格
+        self.pnl = -9999999
 
     def to_dict(self):
         return {
@@ -28,7 +29,8 @@ class Trade:
             'actual_date': self.actual_date,
             'amount': self.amount,
             'position': self.position,
-            'price': self.price
+            'price': self.price,
+            'pnl': self.pnl
         }
 
     def __str__(self):

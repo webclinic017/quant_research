@@ -102,16 +102,20 @@ class Broker:
             trade.amount = trade.position * trade.price
         self.df_trade_history = self.df_trade_history.append(trade.to_dict(), ignore_index=True)
 
-    def real_sell(self, trade, date):
+    def real_sell(self, trade, today):
         # 先获得这笔交易对应的数据
         try:
             # 使用try/exception + 索引loc是为了提速，直接用列，或者防止KeyError的intersection，都非常慢， 60ms vs 3ms，20倍关系
             # 另外，date列是否是str还是date/int对速度影响不大
             # df_stock = self.df_daily.loc[self.df_daily.index.intersection([(date, trade.code)])]
             df = self.data_dict[trade.code]
-            series = df.loc[trade.target_date]
+            # series = df.loc[trade.target_date]
+            # bugfix: 2023.2.22,不能按照trade要求的日志，就是要按照今日的价格成交
+            # 原因是，比如今天是2.22，我挂的目标日子是2.21，因为某种原因为成交
+            # 到了今天2.22，就得按照今天2.22的价格成交，而不是昨日2.21的价格
+            series = df.loc[today]
         except KeyError:
-            logger.warning("[%s] 在 [%s]日 没有数据，无法买入，只能延后", trade.code, date2str(date))
+            logger.warning("[%s] 在 [%s]日 没有数据，无法买入，只能延后", trade.code, date2str(today))
             return False
 
         price = series.open  # 要用开盘价来买入
@@ -126,7 +130,7 @@ class Broker:
         # 如果卖出股数大于持仓，就只卖出所有持仓
         if position > self.positions[trade.code].position:
             logger.warning("[%s] 卖出基金/股票[%s]股数%d>持仓%d，等同于清仓",
-                           date2str(date),
+                           date2str(today),
                            trade.code,
                            position,
                            self.positions[trade.code].position)
@@ -137,15 +141,18 @@ class Broker:
         commission = amount * SELL_COMMISSION_RATE
         self.total_commission += commission
 
-        # 更新头寸,仓位,交易历史
-        self.trades.remove(trade)
-        self.add_trade_history(trade, date, price)
-
         # 计算收益
         pnl = (price - self.positions[trade.code].cost) / self.positions[trade.code].cost
 
+
+        # 更新头寸,仓位,交易历史
+        self.trades.remove(trade)
+        trade.pnl = pnl
+        self.add_trade_history(trade, today, price)
+
+
         logger.debug("[%s] [%s]以[%.2f]卖出[%.2f股/%.2f元],佣金[%.2f],收益[%.1f%%]",
-                     date2str(date),
+                     date2str(today),
                      trade.code,
                      price,
                      position,
@@ -153,14 +160,14 @@ class Broker:
                      commission,
                      pnl * 100)
 
-        # 计算卖出获得现金的时候，要刨除手续费
-        self.cashin(date, amount - commission)
-
         # 创建，或者，更新持仓
-        self.positions[trade.code].update(date, -position, price)
+        self.positions[trade.code].update(today, -position, price)
         if self.positions[trade.code].position == 0:
             logger.info("基金/股票[%s]仓位为0，清仓", trade.code)
             self.positions.pop(trade.code, None)  # None可以防止pop异常
+
+        # 计算卖出获得现金的时候，要刨除手续费，更新完持仓，再更新现金
+        self.cashin(today, amount - commission)
 
         return True
 
@@ -289,13 +296,11 @@ class Broker:
         # 我的总现金量的变多了
         old_total_cash = self.total_cash
         self.total_cash += amount
-        logger.debug("[%s] 总现金变化：%.2f+%.2f=>%.2f元，其中，总持仓：%.2f元，总市值：%.2f元",
+        logger.debug("[%s] 总现金流入：%.2f[原] + %.2f[入] => %.2f元",
                      date2str(date),
                      old_total_cash,
                      amount,
-                     self.total_cash,
-                     self.get_total_position_value(),
-                     self.get_total_value())
+                     self.total_cash)
 
     def cashout(self, date, amount):
 
@@ -305,13 +310,11 @@ class Broker:
         if self.total_cash < 0:
             self.total_cash = 0  # 防止多减
 
-        logger.debug("[%s] 总现金：%.2f-%.2f=>%.2f元，其中，总持仓：%.2f元，总市值：%.2f元",
+        logger.debug("[%s] 总现金流出：%.2f[原] - %.2f[出] => %.2f元[剩]",
                      date2str(date),
                      old_total_cash,
                      amount,
-                     self.total_cash,
-                     self.get_total_position_value(),
-                     self.get_total_value())
+                     self.total_cash)
 
     def is_in_position(self, code):
         for position_code, _ in self.positions.items():
@@ -491,7 +494,7 @@ class Broker:
     def set_strategy(self, strategy):
         self.strategy = strategy
 
-    def run(self, day_date):
+    def run(self, today):
         """
         这个定义，代理商每天要干啥
         day_date，今天的日期
@@ -507,23 +510,27 @@ class Broker:
         # 倒序删除: 因为列表总是“向前移”，所以可以倒序遍历，即使后面的元素被修改了，还没有被遍历的元素和其坐标还是保持不变的。
         for i in range(len(self.trades) - 1, -1, -1):
             trade = self.trades[i]
+            if trade.target_date > today:
+                logger.debug("订单要求日期[%s]>今日[%s]，忽略此订单",date2str(trade.target_date),date2str(today))
+                continue
+
             if trade.action == 'sell':
-                self.real_sell(trade, day_date)
+                self.real_sell(trade, today)
             else:
-                self.real_buy(trade, day_date)
+                self.real_buy(trade, today)
 
         if original_position_size != len(self.positions):
             logger.debug("%s 日后，仓位变化，从%d=>%d 只:%s",
-                         date2str(day_date),
+                         date2str(today),
                          original_position_size,
                          len(self.positions),
                          ",".join(self.positions.keys()))
 
         for code, _ in self.positions.items():
             # 更新每只持仓股票的市值变化
-            self.update_market_value(day_date, code)
+            self.update_market_value(today, code)
 
         # 更新整个市值的变化
-        self.update_total_market_value(day_date)
+        self.update_total_market_value(today)
 
         return result  # 如果有交易，才返回True

@@ -77,20 +77,7 @@ def plot(start_date, end_date, broker, df_baseline, df_portfolio, df_dict, df_st
     h_portfolio, = ax_portfolio.plot(df_portfolio.index, df_portfolio.total_value, 'c')
     ax_portfolio.set_ylabel(f'组合投资的总市值', color='c')  # 设置Y轴标题
     ax_portfolio.spines['right'].set_position(('outward', 60))  # right, left, top, bottom
-    # 画北上资金流
-    # df_moneyflow = df_dict['moneyflow']
-    # ax_moneyflow = ax_baseline.twinx()  # 返回共享x轴的第3个轴
-    # ax_moneyflow.set_ylabel('北上资金', color='r')  # 设置Y轴标题
-    # ax_moneyflow.spines['right'].set_position(('outward', 120))  # right, left, top, bottom
-    # h_moneyflow, = ax_moneyflow.plot(df_moneyflow.index, df_moneyflow.north_money, 'r')
-    # # 画开仓信号
-    # df_open = df_moneyflow_position[df_moneyflow_position.position == 'open']
-    # ax_moneyflow.scatter(df_open.date, df_open.north_money, marker='^', c='r', s=40)
-    # # 画清仓信号
-    # df_close = df_moneyflow_position[df_moneyflow_position.position == 'close']
-    # ax_moneyflow.scatter(df_close.date, df_close.north_money, marker='v', c='g', s=40)
-    # 画出北上资金上下规定的边界区域
-    # ax_moneyflow.fill_between(df_moneyflow.index, df_moneyflow.upper, df_moneyflow.lower, alpha=0.2)
+
     # 画图例
     plt.legend(handles=[h_portfolio],
                labels=['组合投资的总市值'],
@@ -138,7 +125,7 @@ def plot(start_date, end_date, broker, df_baseline, df_portfolio, df_dict, df_st
             (broker.df_trade_history.code == code) & (broker.df_trade_history.action == 'sell')]
         df_data_market = broker.market_value_dict.get(code, None)
         if df_data_market is None:
-            # logger.warning("基金[%s] 在%s~%s未发生交易市值变化", code, date2str(start_date), date2str(end_date))
+            logger.warning("基金[%s] 在%s~%s未发生交易市值变化", code, date2str(start_date), date2str(end_date))
             continue
 
         pos += 1
@@ -188,40 +175,9 @@ def plot_stock(fig, row, col, pos, df_data, df_data_market_value, df_buy_trades,
     ax_fund_accumulate.spines['right'].set_position(('outward', 60))  # right, left, top, bottom
     # h_fund_accumulate, = ax_fund_accumulate.plot(df_data.index, df_data.close, 'b', linewidth=2)
 
-    # https://blog.csdn.net/wuwei_201/article/details/108018343
-    hist_pos = df_data.macd_hist.apply(lambda x: 0 if x <= 0 else x)
-    hist_minus = df_data.macd_hist.apply(lambda x: 0 if x > 0 else x)
-    add_plot = [
-        mpf.make_addplot(hist_pos * 10,
-                         type='bar',
-                         width=0.7,
-                         panel=2,
-                         color='red',
-                         alpha=1,
-                         secondary_y=False,
-                         ax=ax_fund_accumulate),
-        mpf.make_addplot(hist_minus * 10,
-                         type='bar',
-                         width=0.7,
-                         panel=2,
-                         color='green',
-                         alpha=1,
-                         secondary_y=False,
-                         ax=ax_fund_accumulate),
-        mpf.make_addplot(df_data.macd, panel=2, color='fuchsia', secondary_y=True, ax=ax_fund_accumulate),
-        # mpf.make_addplot(df_data.macd_signal, panel=2, color='b', secondary_y=True, ax=ax_fund_accumulate),
-
-        mpf.make_addplot(df_data.ma5, panel=1, color='b', width=0.5, alpha=0.5, secondary_y=True,
-                         ax=ax_fund_accumulate),
-        mpf.make_addplot(df_data.ma10, panel=1, color='b', width=1, alpha=0.5, secondary_y=True,
-                         ax=ax_fund_accumulate),
-        mpf.make_addplot(df_data.ma20, panel=1, color='b', width=2, alpha=0.5, secondary_y=True,
-                         ax=ax_fund_accumulate),
-    ]
     mpf.plot(df_data,
              ax=ax_fund_accumulate,
              style=style,
-             addplot=add_plot,
              type='candle',
              main_panel=0,
              volume_panel=2,
@@ -239,3 +195,7 @@ def plot_stock(fig, row, col, pos, df_data, df_data_market_value, df_buy_trades,
     ax_position_value.spines['right'].set_position(('outward', 180))  # right, left, top, bottom
     ax_position_value.set_ylabel('持仓价值变化', color='g')  # 设置Y轴标题
     ax_position_value.plot(df_data_market_value.date, df_data_market_value.position_value, 'c')
+
+    # 画bolling
+    ax_fund_accumulate.fill_between(df_data.index, df_data.upper, df_data.lower, alpha=0.2)
+    h_fund_sma, = ax_fund_accumulate.plot(df_data.index, df_data.middle, color='#6495ED', linestyle='--', linewidth=1)

@@ -6,6 +6,9 @@ code: '603233'
 fastperiod: 12
 slowperiod: 26
 signalperiod: 9
+#fastperiod: 5
+#slowperiod: 10
+#signalperiod: 4
 slope_windows: 3
 slope_threshold: 0.1
 limit_loss: -0.05
