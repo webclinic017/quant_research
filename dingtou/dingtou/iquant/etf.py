@@ -511,7 +511,7 @@ def get_account_info():
     result = ''
     account_info = get_trade_detail_data(A.acct, 'stock', 'account')
     for i in account_info:
-        info = f'总资产:{i.m_dBalance},可用金额:{i.m_dAvailable},总市值:{i.m_dInstrumentValue},总盈亏:{i.m_dPositionProfit}'
+        info = f'总资产:{i.m_dBalance},可用金额:{i.m_dAvailable},总市值:{i.m_dInstrumentValue},总盈亏:{round(i.m_dPositionProfit,2)}'
         result+=f'{info}\n'
     return result
 
@@ -533,7 +533,7 @@ def __handlebar(C):
 
     # 开盘后和收盘前，如果资金不足，就提醒，is_new_bar来提醒一次
     # 另外，必须是9:30分，因为生产环境下，handlebar 才会被触发，开盘前，不会运行handlebar的
-    if _is_realtime(C) and C.is_new_bar() and (now_time[:4] == '0930' or now_time[:4] == "1459"):
+    if _is_realtime(C) and C.is_new_bar() and (now_time[:4] == '0930' or now_time[:4] == "1458"):
         account = get_trade_detail_data(A.acct, A.acct_type, 'account')
         account = account[0]
         available_cash = int(account.m_dAvailable)
