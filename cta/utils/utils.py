@@ -366,6 +366,14 @@ def get_monthly_duration(start_date, end_date):
 
     return scopes
 
+def get_series(df, index_key, num):
+    """
+    # 先前key之前或者之后的series
+    """
+    loc = df.index.get_loc(index_key)
+    s = df.iloc[loc + num]
+    return s
+
 # python -m utils.utils
 if __name__ == '__main__':
     p = load_params('triples/params.yml')

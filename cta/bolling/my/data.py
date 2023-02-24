@@ -9,8 +9,13 @@ logger = logging.getLogger(__name__)
 
 class Data():
     def process(self, df, params):
+        if params.k_type == 'heikin-ashi':
+            close = (df.high + df.low + df.open + df.close) / 4
+        else:
+            close = df.close
+
         df["upper"], df["middle"], df["lower"] = \
-            talib.BBANDS(df.close,
+            talib.BBANDS(close,
                          timeperiod=params.bolling_ma,
                          nbdevup=params.bolling_std,
                          nbdevdn=params.bolling_std,
@@ -26,4 +31,4 @@ class Data():
             df = self.process(df, params)
             df_dict[code] = df
 
-        return df_baseline,df_dict
+        return df_baseline, df_dict

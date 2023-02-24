@@ -3,8 +3,8 @@ end_date: "20230101"
 baseline: 'sh000001'
 amount: 500000 # 初始总现金
 code: '600196'
-limit_loss: -0.05
+limit_loss: -0.1 # 止损
+limit_win: 0.3 # 止盈
 bolling_ma: 20
 bolling_std: 2
-k_type: 'normal' # 'heikin-ashi' # heikin-ashi, normal
 sell_flag: 'lower' # lower | middle 跌破中轨还是下轨？
