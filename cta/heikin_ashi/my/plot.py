@@ -147,10 +147,10 @@ def plot_stock(fig, row, col, pos, df_data, broker, code):
              main_panel=0,
              volume_panel=2,
              show_nontrading=True)
-    ax.plot(df_data.index, df_data.ema3, color='g', linewidth=0.5)
-    ax.plot(df_data.index, df_data.ema8, color='b', linewidth=0.75)
     # color:https://pythondatascience.plavox.info/wp-content/uploads/2016/06/colorpalette.png
     ax.plot(df_data.index, df_data.ema17, color='peru', linewidth=1)
+    ax.plot(df_data.index, df_data.ema8, color='b', linewidth=0.75)
+    ax.plot(df_data.index, df_data.ema3, color='lime', linewidth=0.5)
 
     if df_buy_trades is not None:
         # 画买卖信号

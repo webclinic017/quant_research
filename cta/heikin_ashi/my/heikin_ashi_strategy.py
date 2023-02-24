@@ -51,7 +51,7 @@ class HeikinAshiStrategy(Strategy):
                 s2.ema17 < s2.ema8 < s2.ema3 and \
                 s1.ema17 < s1.ema8 < s1.ema3 < s2.ema3 and \
                 s0.ema17 < s0.ema8 < s0.ema3 and \
-                0 < gap_percent < 0.5 and \
+                gap_percent < 0.5 and \
                 s0.h_close > s0.ema3:
             self.broker.buy(self.code, trade_date, amount=self.broker.total_cash)
             logger.debug("[%s] [%s] 信号满足, 买入", date2str(today), self.code)
