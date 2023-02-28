@@ -142,11 +142,8 @@ def http_json_post(url, dict_msg):
 
 
 def __handlebar(C):
-    # 实盘/模拟盘的时候，从2015开始，所以需要跳过历史k线，
-    # 只要第一个tick（is_new_bar），才触发，否则3秒就一次，受不了
-    # 回测的时候不需要
-    if not C.is_last_bar() or not C.is_new_bar():
-        return
+    if not C.is_last_bar(): return
+    if not C.is_new_bar(): return
 
     # 获得当天的日期
     s = C.stockcode

@@ -437,7 +437,18 @@ def __handlebar(C):
     # 实盘/模拟盘的时候，从2015开始，所以需要跳过历史k线，
     # 回测的时候不需要
     if not _is_realtime(C): return
+    # is_last_bar很恶心，他不是在当前bar的最后一个tick才为True，而是最后一个bar内的每个tick，都为True
+    # 再次吐槽，这个和is_new_bar()根本不是一个配对，那个确实是只有在第一个tick才会True，其他tick都是False
+    #              is_new_bar()：某根 K 线的第一个 tick 数据到来时，判定该 K 线为新的 K 线
     if not C.is_last_bar(): return
+    # 这个代码很重要，否则，就会3秒一个tick就会触发交易一次，导致各种各样的问题，如频繁交易
+    # 之前我一直没找到这个函数，以为没有呢，靠！
+    # 有了这个，我就只会在设置的交易回调间隔最后第一个tick（比如我现在设置的1分钟，所以只有在这分钟的第20个tick才触发），
+    # 才会触发，否则，就无情的返回了
+    # 注意：
+    #       这导致，我下单的时候，不能用常规下单，常规下单必须要在bar的最后一个tick才有效
+    #       而是不得不使用quickTrade=1，立刻让订单生效
+    if not C.is_new_bar():return
 
     # 获得当天的日期
     s = C.stockcode
@@ -451,7 +462,7 @@ def __handlebar(C):
 
     # 开盘后和收盘前，如果资金不足，就提醒，is_new_bar来提醒一次
     # 另外，必须是9:30分，因为生产环境下，handlebar 才会被触发，开盘前，不会运行handlebar的
-    if _is_realtime(C) and C.is_new_bar() and (now_time[:4] == '0930' or now_time[:4] == "1458"):
+    if now_time[:4] == '0930' or now_time[:4] == "1458":
         account = get_trade_detail_data(A.acct, A.acct_type, 'account')
         account = account[0]
         available_cash = int(account.m_dAvailable)
@@ -467,7 +478,7 @@ def __handlebar(C):
             logger.warning(msg)
             A.messager.send(f'[{POLICY_NAME}] 请补充现金', f"{msg}", A.messager.ERROR)
 
-    if _is_realtime(C) and (now_time < '093000' or now_time > "150000"):
+    if  now_time < '093000' or now_time > "150000":
         logger.warning("不在交易时间：%s", now_time)
         return
 
