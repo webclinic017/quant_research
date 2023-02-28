@@ -31,7 +31,11 @@ logger = logging.getLogger(__name__)
 - 2023.2.28 
     - 加入创业板，之前回测不是最理想，但是有机会，所以也加入了；之后再review，重新加回17只
     - 重构了消息发送，把发送消息的抽到了MessageSender中，方便统一管理和将来的复用
-    - 每格购买金额降至500元
+    - 每格购买金额降至500元，原因是17只了，交易额度有些大
+    - 修改了原有在Handlebar中即时加载缓存数据的方法，而是把加载数据移到了init中，
+      原因是那样处理太麻烦，此策略反正每天都要重启，无需担心陈旧，
+      但是，850均线使用的就是昨日的收盘价，不再是今日的开盘价了，这个细节影响不大
+      另外，服务器端的策略示意图，用的也是昨日的收盘数据，不再是今日的最新数据，这点自己要意识到
 
 运行回测的参数：
 python -m dingtou.pyramid_v2.pyramid_v2 \
@@ -81,7 +85,6 @@ last_grid_position = f"{data_dir}\\last_grid_position.json"
 POLICY_NAME = 'ETF定投'
 MAX_TRADE_NUM_PER_DAY = 3  # 每天每只股票最大的交易次数（买和卖）
 MIN_CASH = 80000  # 小于这个资金，就要报警了，防止资金不够，默认是300000比较合适，低于20万提醒，然后银转证到30万
-
 
 conf = load_conf(conf_path)
 
@@ -331,6 +334,20 @@ def init(ContextInfo):
         args,
         last_grid_position  # 记录每只基金的最后的grid位置的json文件
     )
+
+    # 先把所有数据都加载一遍，因为此程序每天启动一次，所以无需担心数据陈旧，每天都会获得最新的数据
+    # 不过最后的数据，是昨天的收盘数据，这点要意识到
+    for stock_code in A.stock_list:
+        df = load_data(ContextInfo,stock_code)
+        # 缓存起来
+        A.data[stock_code] = df
+        # 保存一份（将来会上传到监控服务器）
+        df.to_csv(f"{data_dir}\\{stock_code}.csv")
+
+    # 设置一下数据
+    A.strategy.set_data(df_baseline=None, funds_dict=A.data)
+    logger.info('将数据，设置到策略中')
+
     logger.info('策略初始化完毕')
 
 
@@ -387,16 +404,7 @@ def deal_callback(ContextInfo, dealInfo):
         writer.writerow(data)
 
 
-def load_data(C, stock_code, today):
-    df = A.data.get(stock_code, None)
-
-    # 因为每分钟都会运行这个程序，所以为了性能，不是每分钟都加载，每天只加载一次
-    if df is not None and df.iloc[-1].name == today:
-        # logger.debug("[%s] %s日的数据，已经有了，无需再加载" , today, stock_code)
-        # 有今天的日期，就啥都不做了
-        return df
-
-    # 如果和今天不一样，就需要重新加载数据
+def load_data(C, stock_code):
     # ！！！今天的数据，会是第1个bar的收盘价，用这个数据，来计算850均线，这个细节需要注意，不是昨天的收盘价
     start_date = str(C.get_open_date(stock_code))  # 得到上市日期
     df = C.get_market_data(
@@ -406,12 +414,7 @@ def load_data(C, stock_code, today):
         count=2400,  # 为了要找出很长的历史下的80%和20%分位数，需要加载十年的，其实只有8年的数据，因为有2年需要做移动平均，都是na
         period='1d',  # 这个会获得当天的信息
         dividend_type='front')  # 采用了前复权，主要是为了获得最新的价格
-    df.to_csv(f"{data_dir}\\{stock_code}.csv")
-    # 替换掉旧的数据
-    A.data[stock_code] = df
-
     logger.info("加载%s日期%s~%s数据%d行", stock_code, df.iloc[0]._name, df.iloc[-1]._name, len(df))
-    A.strategy.set_data(df_baseline=None, funds_dict=A.data)
     return df
 
 
@@ -448,10 +451,9 @@ def __handlebar(C):
     # 注意：
     #       这导致，我下单的时候，不能用常规下单，常规下单必须要在bar的最后一个tick才有效
     #       而是不得不使用quickTrade=1，立刻让订单生效
-    if not C.is_new_bar():return
+    if not C.is_new_bar(): return
 
     # 获得当天的日期
-    s = C.stockcode
     d = C.barpos
     t = C.get_bar_timetag(d)
     date = timetag_to_datetime(t, '%Y%m%d')
@@ -478,7 +480,7 @@ def __handlebar(C):
             logger.warning(msg)
             A.messager.send(f'[{POLICY_NAME}] 请补充现金', f"{msg}", A.messager.ERROR)
 
-    if  now_time < '093000' or now_time > "150000":
+    if now_time < '093000' or now_time > "150000":
         logger.warning("不在交易时间：%s", now_time)
         return
 
@@ -504,14 +506,10 @@ def __handlebar(C):
         # 获得实盘上，最后一分钟的close的值
         series_last_price = get_last_price(C, stock_code)
 
-        # 从series中，得到当天的日期
-        today = series_last_price._name[:8]  # 获得当天的日期
-
         # 从series中，得到最后一分钟的价格
         last_price = series_last_price.item()
 
-        # 判断是否需要重新加载数据，只有缓存的数据的最后日期和今天不一致的时候，才需要重新加载
-        df = load_data(C, stock_code, today)
+        df = A.data[stock_code]
 
         # 得到最后一天的MA
         last_ma = df.iloc[-1].ma

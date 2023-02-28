@@ -52,8 +52,8 @@ def get_accounts():
         r = {}
         r['总资产'] = i.m_dBalance
         r['可用金额'] = i.m_dAvailable
-        r['总市值'] = i.m_dInstrumentValue
-        r['总盈亏'] = i.m_dPositionProfit
+        r['总市值'] = round(i.m_dInstrumentValue,4)
+        r['总盈亏'] = round(i.m_dPositionProfit,4)
         results.append(r)
     return results
 
