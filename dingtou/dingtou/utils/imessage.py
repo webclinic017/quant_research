@@ -22,8 +22,8 @@ class MessageSender():
         self.conf = conf
         self.senders = {
             'weixin': WeixinMessager(conf),
-            'plusplus': PlusMessager(conf),
-            'mail': MailMessager(conf),
+            # 'plusplus': PlusMessager(conf),
+            # 'mail': MailMessager(conf),
         }
 
     def send(self, title, msg, type):

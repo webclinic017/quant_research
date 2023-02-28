@@ -436,8 +436,8 @@ def get_account_info():
 def __handlebar(C):
     # 实盘/模拟盘的时候，从2015开始，所以需要跳过历史k线，
     # 回测的时候不需要
-    if _is_realtime(C) and not C.is_last_bar():
-        return
+    if not _is_realtime(C): return
+    if not C.is_last_bar(): return
 
     # 获得当天的日期
     s = C.stockcode
@@ -478,13 +478,6 @@ def __handlebar(C):
         C.barpos,
         C.is_last_bar())
     """
-
-    # 这个代码很重要，否则，就会3秒一个tick就会触发交易一次，导致各种各样的问题，如频繁交易
-    # 之前我一直没找到这个函数，以为没有呢，靠！
-    # 有了这个，我就只会在设置的交易回调间隔最后一个tick（比如我现在设置的1分钟，所以只有在这分钟的第20个tick才触发），
-    # 才会触发，否则，就无情的返回了
-    if not C.is_last_bar():
-        return
 
     # 注：在回测模式中，交易函数调用虚拟账号进行交易，在历史 K 线上记录买卖点，用以计算策略净值/
     # 回测指标；实盘运行调用策略中设置的资金账号进行交易，产生实际委托；模拟运行模式下交易函数无
