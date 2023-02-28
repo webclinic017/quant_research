@@ -3,7 +3,6 @@ import logging
 import csv
 from importlib import reload
 import time
-import yaml
 import os
 import traceback
 
@@ -32,6 +31,7 @@ logger = logging.getLogger(__name__)
 - 2023.2.28 
     - 加入创业板，之前回测不是最理想，但是有机会，所以也加入了；之后再review，重新加回17只
     - 重构了消息发送，把发送消息的抽到了MessageSender中，方便统一管理和将来的复用
+    - 每格购买金额降至500元
 
 运行回测的参数：
 python -m dingtou.pyramid_v2.pyramid_v2 \
@@ -60,7 +60,7 @@ stocks = ["510330.SH", "510500.SH", "159915.SZ", "588090.SH", "512880.SH", "5122
 
 class Args():
     grid_height = 0.01
-    grid_amount = 1000
+    grid_amount = 500
     quantile_positive = 0.8
     quantile_negative = 0.4
     ma = 850
@@ -397,6 +397,7 @@ def load_data(C, stock_code, today):
         return df
 
     # 如果和今天不一样，就需要重新加载数据
+    # ！！！今天的数据，会是第1个bar的收盘价，用这个数据，来计算850均线，这个细节需要注意，不是昨天的收盘价
     start_date = str(C.get_open_date(stock_code))  # 得到上市日期
     df = C.get_market_data(
         fields=['close'],
