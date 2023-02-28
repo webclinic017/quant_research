@@ -5,7 +5,8 @@ import os
 import traceback
 
 import requests
-import yaml
+
+from dingtou.utils.utils import load_conf
 
 logger = logging.getLogger(__name__)
 
@@ -19,14 +20,7 @@ last_grid_position = f"{data_dir}\\last_grid_position.json"
 
 POLICY_NAME = '心跳'
 
-
-def load_conf():
-    f = open(conf_path, 'r', encoding='utf-8')
-    result = f.read()
-    return yaml.load(result, Loader=yaml.FullLoader)
-
-
-conf = load_conf()
+conf = load_conf(conf_path)
 
 
 def init_logger(file_full_path, log_level=logging.DEBUG):
@@ -74,12 +68,12 @@ def get_positions():
         r['市场'] = i.m_strExchangeName
         r['日期'] = i.m_strOpenDate
         r['股数'] = i.m_nVolume
-        r['持仓成本'] = round(i.m_dOpenPrice,4)
-        r['成本价'] = round(i.m_dOpenCost,4)
-        r['最新价'] = round(i.m_dSettlementPrice,4)
-        r['盈亏'] = round(i.m_dFloatProfit,4)
-        r['市值'] = round(i.m_dMarketValue,4)
-        r['盈亏比例'] = round(i.m_dProfitRate,4)
+        r['持仓成本'] = round(i.m_dOpenPrice, 4)
+        r['成本价'] = round(i.m_dOpenCost, 4)
+        r['最新价'] = round(i.m_dSettlementPrice, 4)
+        r['盈亏'] = round(i.m_dFloatProfit, 4)
+        r['市值'] = round(i.m_dMarketValue, 4)
+        r['盈亏比例'] = round(i.m_dProfitRate, 4)
         results.append(r)
     return results
 
@@ -132,9 +126,9 @@ def handlebar(ContextInfo):
     try:
         __handlebar(ContextInfo)
     except Exception as e:
-        #msg = ''.join(list(traceback.format_exc()))
-        logger.error("异常发生：%s",str(e))
-        #logger.exception("handlerbar异常")
+        # msg = ''.join(list(traceback.format_exc()))
+        logger.error("异常发生：%s", str(e))
+        # logger.exception("handlerbar异常")
 
 
 def http_json_post(url, dict_msg):
@@ -173,9 +167,9 @@ def __handlebar(C):
     """
 
     http_json_post(conf['url'], {'action': 'heartbeat',
-                         'name': 'qmt',
-                         'info': [
-                             {'name':'accounts', 'data':get_accounts()},
-                             {'name':'positions', 'data':get_positions()},
-                             {'name':'deals', 'data':get_deals()}
-                         ]})
+                                 'name': 'qmt',
+                                 'info': [
+                                     {'name': 'accounts', 'data': get_accounts()},
+                                     {'name': 'positions', 'data': get_positions()},
+                                     {'name': 'deals', 'data': get_deals()}
+                                 ]})

@@ -9,6 +9,7 @@ import time
 import functools
 
 import dask
+import yaml
 from dask import compute, delayed
 from dateutil.relativedelta import relativedelta
 
@@ -242,3 +243,8 @@ def parallel_run(core_num, iterable, func, *args, **kwargs):
         client = Client(asynchronous=True, n_workers=4, threads_per_worker=2)
 
         return result
+
+def load_conf(conf_path):
+    f = open(conf_path, 'r', encoding='utf-8')
+    result = f.read()
+    return yaml.load(result, Loader=yaml.FullLoader)

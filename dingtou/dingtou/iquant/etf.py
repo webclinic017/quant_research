@@ -1,21 +1,18 @@
 # encoding:gbk
 import logging
 import csv
-import smtplib
-from email.header import Header
-from email.mime.text import MIMEText
 from importlib import reload
 import time
-import requests
 import yaml
 import os
 import traceback
-import json
 
 import dingtou
 from dingtou.pyramid_v2.pyramid_v2_strategy import PyramidV2Strategy
 from dingtou.pyramid_v2.position_calculator import PositionCalculator
-from dingtou.utils.utils import str2date, date2str
+
+from dingtou.utils.imessage import MessageSender
+from dingtou.utils.utils import str2date, date2str, load_conf
 
 import datetime
 
@@ -32,6 +29,9 @@ logger = logging.getLogger(__name__)
     - 修改了提示，只提示缺少资金1次，用is_new_bar
 - 2023.2.18
     - 增加了开盘、收盘发送一下仓位情况
+- 2023.2.28 
+    - 加入创业板，之前回测不是最理想，但是有机会，所以也加入了；之后再review，重新加回17只
+    - 重构了消息发送，把发送消息的抽到了MessageSender中，方便统一管理和将来的复用
 
 运行回测的参数：
 python -m dingtou.pyramid_v2.pyramid_v2 \
@@ -51,7 +51,13 @@ python -m dingtou.pyramid_v2.pyramid_v2 \
 """
 
 # 设置所有的参数，这些参数都是经过回测的最优的，无需调整（20230215更新）
-stocks = ["512690.SH", "512580.SH", "512660.SH", "159915.SZ", "159928.SZ", "510330.SH", "510500.SH"]
+# stocks = ["159915.SZ","512690.SH", "512580.SH", "512660.SH", "159915.SZ", "159928.SZ", "510330.SH", "510500.SH"]
+# 实盘后，感觉机会少，另外，排名靠后的科技、半导体都很好低位，却没有选中，重新调整回17只
+stocks = ["510330.SH", "510500.SH", "159915.SZ", "588090.SH", "512880.SH", "512200.SH", "512660.SH", "512010.SH",
+          "512800.SH", "512690.SH", "510810.SH", "512980.SH", "512760.SH", "159928.SZ", "515000.SH", "516160.SH",
+          "512580.SH"]
+
+
 class Args():
     grid_height = 0.01
     grid_amount = 1000
@@ -60,6 +66,8 @@ class Args():
     ma = 850
     buy_factor = 1
     sell_factor = 2
+
+
 args = Args()
 
 # 设置所有的目录
@@ -75,13 +83,7 @@ MAX_TRADE_NUM_PER_DAY = 3  # 每天每只股票最大的交易次数（买和卖）
 MIN_CASH = 80000  # 小于这个资金，就要报警了，防止资金不够，默认是300000比较合适，低于20万提醒，然后银转证到30万
 
 
-def load_conf():
-    f = open(conf_path, 'r', encoding='utf-8')
-    result = f.read()
-    return yaml.load(result, Loader=yaml.FullLoader)
-
-
-conf = load_conf()
+conf = load_conf(conf_path)
 
 
 def _is_realtime(context):
@@ -148,7 +150,8 @@ class Broker():
         """
         http://docs.thinktrader.net/vip/pages/d0dd26/#_1-%E7%BB%BC%E5%90%88%E4%BA%A4%E6%98%93%E4%B8%8B%E5%8D%95-passorder
         passorder是对最后一根K线完全走完后生成的模型信号在下一根K线的第一个tick数据来时触发下单交易；
-        采用quickTrade参数设置为1时，非历史bar上执行时（ContextInfo.is_last_bar()为True），只要策略模型中调用到就触发下单交易。
+        采用quickTrade参数设置为1时，非历史bar上执行时（ContextInfo.is_last_bar()为True），
+        只要策略模型中调用到就触发下单交易。
         quickTrade参数设置为2时，不判断bar状态，只要策略模型中调用到就触发下单交易，历史bar上也能触发下单，请谨慎使用。
 
         logger.debug("账号%s买入基金%s %.0f股",self.account,code,position)
@@ -178,19 +181,16 @@ class Broker():
         if self.check_max_trade(code):
             msg = "挂买单失败，超过当日允许的最大交易次数[%d次]：账号%s于%s日按照卖2价，买入基金%s: %.0f元" % (
                 MAX_TRADE_NUM_PER_DAY, self.account, date2str(date), code, amount)
-            logger.info(msg)
-            weixin('detail', msg)
-            mail(f'[{POLICY_NAME}] 创建买单失败', msg)
+            logger.warning(msg)
+            A.messager.send(f'[{POLICY_NAME}] 创建买单失败', f"{msg}", A.messager.ERROR)
             return False
 
         my_cash = self.get_available_cash()
         if my_cash < amount:
             msg = "挂买单失败，购买金额小于可用金额[%.2f]：账号%s于%s日按照卖2价，买入基金%s: %.0f元" % (
                 my_cash, self.account, date2str(date), code, amount)
-            logger.info(msg)
-            weixin('detail', msg)
-            mail(f'[{POLICY_NAME}] 创建买单失败', msg)
-            plusplus_msg('创建买单', msg, 'error')
+            logger.warning(msg)
+            A.messager.send(f'[{POLICY_NAME}] 创建买单失败', f"{msg}", A.messager.ERROR)
             return False
 
         old_postions = get_trade_detail_data(self.account, 'stock', 'position')
@@ -202,9 +202,8 @@ class Broker():
 
         msg = "账号%s于%s日按照卖2价，买入基金%s: %.0f元" % (self.account, date2str(date), code, amount)
         logger.info(msg)
-        weixin('detail', msg)
-        mail(f'[{POLICY_NAME}] 创建买单(仅下单)', msg)
-        plusplus_msg('创建买单', msg)
+
+        A.messager.send(f'[{POLICY_NAME}] 创建买单', f"{msg}", A.messager.SIGNAL)
 
         postions = get_trade_detail_data(self.account, 'stock', 'position')
 
@@ -240,9 +239,8 @@ class Broker():
         if self.check_max_trade(code):
             msg = "挂卖单失败，超过当日允许的最大交易次数[%d次]：账号%s于%s日按照买2价，买入基金%s: %.0f元" % (
                 MAX_TRADE_NUM_PER_DAY, self.account, date2str(date), code, amount)
-            logger.info(msg)
-            weixin('detail', msg)
-            mail(f'[{POLICY_NAME}] 创建卖单失败', msg)
+            logger.error(msg)
+            A.messager.send(f'[{POLICY_NAME}] 创建卖单失败', f"{msg}", A.messager.ERROR)
             return False
 
         old_postions = postions = get_trade_detail_data(self.account, 'stock', 'position')
@@ -269,9 +267,7 @@ class Broker():
         msg = "账号%s于%s日按照买2价，卖出基金%s %.0f元，订单号[%s]" % (
             self.account, date2str(date), code, available_amount, order_id)
         logger.info(msg)
-        weixin('detail', msg)
-        mail(f'[{POLICY_NAME}] 创建卖单', msg)
-        plusplus_msg('创建卖单', msg)
+        A.messager.send(f'[{POLICY_NAME}] 创建买单', f"{msg}", A.messager.SIGNAL)
 
         postions = get_trade_detail_data(self.account, 'stock', 'position')
 
@@ -286,85 +282,6 @@ class Broker():
             if p.m_strInstrumentID != code: continue
             logger.info("买入后，持仓：%s : %.0f股", p.m_strInstrumentID, p.m_nVolume)
         return True
-
-        return True
-
-
-def plusplus_msg(title, msg, topic='signal'):
-    try:
-        # http://www.pushplus.plus/doc/guide/api.htm
-        url = 'http://www.pushplus.plus/send'
-        data = {
-            "token": conf['plusplus']['token'],
-            "title": title,
-            "content": msg,
-            "topic": topic
-        }
-        body = json.dumps(data).encode(encoding='utf-8')
-        headers = {'Content-Type': 'application/json'}
-        response = requests.post(url, data=body, headers=headers)
-        data = response.json()
-        if data and data.get("code", None) and data["code"] == 200:
-            return
-        if data and data.get("code", None):
-            logger.warning("发往PlusPlus消息错误: code=%r, msg=%s, token=%s, topic=%s",
-                           data['code'], data['msg'], conf['plusplus']['token'][:10] + "...", topic)
-        else:
-            logger.warning("发往PlusPlus消息错误: 返回为空")
-    except Exception:
-        logger.exception("发往PlusPlus消息发生异常", msg)
-        return False
-
-
-def mail(title, msg):
-    uid = conf['email']['uid']
-    pwd = conf['email']['pwd']
-    host = conf['email']['host']
-    email = conf['email']['email']
-
-    subject = title
-    receivers = [email]  # 接收邮件，可设置为你的QQ邮箱或者其他邮箱
-
-    # 三个参数：第一个为文本内容，第二个 plain 设置文本格式，第三个 utf-8 设置编码
-    message = MIMEText(msg, 'plain', 'utf-8')
-    message['From'] = Header("量化机器人", 'utf-8')  # 发送者
-    message['To'] = Header("量化机器人", 'utf-8')  # 接收者
-    message['Subject'] = Header(subject, 'utf-8')
-
-    try:
-        # logger.info("发送邮件[%s]:[%s:%s]", host,uid,pwd)
-        smtp = smtplib.SMTP_SSL(host)
-        smtp.login(uid, pwd)
-        smtp.sendmail(uid, receivers, message.as_string())
-        logger.info("发往[%s]的邮件通知完成，标题：%s", email, title)
-        return True
-    except smtplib.SMTPException:
-        logger.exception("发往[%s]的邮件出现异常，标题：%s", email, email)
-        return False
-
-
-def weixin(name, msg):
-    """
-    接口文档：https://developer.work.weixin.qq.com/document/path/91770?version=4.0.6.90540
-    """
-    logger.info("开始推送微信[类别:%s]消息", name)
-
-    url = conf['weixin'][name]
-
-    post_data = {
-        "msgtype": "text",
-        "text": {
-            "content": msg[:2040]  # content    是    文本内容，最长不超过2048个字节，必须是utf8编码
-        }
-    }
-    headers = {'Content-Type': 'application/json'}
-    try:
-        requests.post(url, json=post_data, headers=headers)
-        logger.info("发往企业微信机器人[%s]的通知完成", name)
-        return True
-    except Exception:
-        logger.exception("发往企业微信机器人[%s]的消息，发生异常", name)
-        return False
 
 
 # 创建空的类的实例 用来保存委托状态
@@ -397,6 +314,7 @@ def init(ContextInfo):
     A.acct_type = 'stock'  # 账号类型为模型交易界面选择账号
     A.stock_list = stocks
     A.data = {}
+    A.messager = MessageSender(conf)  # 发信息用的
 
     ContextInfo.trade_code_list = stocks
     ContextInfo.set_universe(ContextInfo.trade_code_list)
@@ -428,7 +346,7 @@ def get_last_price(ContextInfo, stock_code):
         stock_code=[stock_code],
         count=1,
         period=period,
-        dividend_type='front')# 必须前复权，后复权有重大问题，会导致偏离均线很大，导致错误交易,20230215
+        dividend_type='front')  # 必须前复权，后复权有重大问题，会导致偏离均线很大，导致错误交易,20230215
 
     logger.debug("获取[%s]%s日的(%s)价格:%.2f", stock_code, df.iloc[0].name, period, df.iloc[0].item())
 
@@ -456,9 +374,8 @@ def deal_callback(ContextInfo, dealInfo):
     logger.info("交易成功：")
     logger.info(headers)
     logger.info(data)
-    weixin('detail', f"[{POLICY_NAME}] 交易成功:\n{headers}\n{data}")
-    mail(f'[{POLICY_NAME}] 交易成功', f"{headers}\n{data}")
-    plusplus_msg('交易成功', f"{headers}\n{data}")
+
+    A.messager.send(f'[{POLICY_NAME}] 交易成功', f"{headers}\n{data}", A.messager.SIGNAL)
 
     flag_header = False
     if not os.path.exists(trans_log):
@@ -480,7 +397,7 @@ def load_data(C, stock_code, today):
         return df
 
     # 如果和今天不一样，就需要重新加载数据
-    start_date = str(C.get_open_date(stock_code))# 得到上市日期
+    start_date = str(C.get_open_date(stock_code))  # 得到上市日期
     df = C.get_market_data(
         fields=['close'],
         stock_code=[stock_code],
@@ -502,18 +419,18 @@ def handlebar(ContextInfo):
         __handlebar(ContextInfo)
     except Exception as e:
         msg = ''.join(list(traceback.format_exc()))
-        weixin('error', msg)
-        mail(f'[{POLICY_NAME}] 发生异常错误', msg)
-        plusplus_msg('发生异常', msg, 'error')
         logger.exception("handlerbar异常")
+        A.messager.send(f'[{POLICY_NAME}] 发生异常', f"{msg}", A.messager.ERROR)
+
 
 def get_account_info():
     result = ''
     account_info = get_trade_detail_data(A.acct, 'stock', 'account')
     for i in account_info:
-        info = f'总资产:{i.m_dBalance},可用金额:{i.m_dAvailable},总市值:{i.m_dInstrumentValue},总盈亏:{round(i.m_dPositionProfit,2)}'
-        result+=f'{info}\n'
+        info = f'总资产:{i.m_dBalance},可用金额:{i.m_dAvailable},总市值:{i.m_dInstrumentValue},总盈亏:{round(i.m_dPositionProfit, 2)}'
+        result += f'{info}\n'
     return result
+
 
 def __handlebar(C):
     # 实盘/模拟盘的时候，从2015开始，所以需要跳过历史k线，
@@ -540,18 +457,14 @@ def __handlebar(C):
 
         # 每天开始和结束，都发送一遍我的资产信息
         account_information = get_account_info()
-        logger.info("[%s] 发送账户信息：%s",now_time,account_information)
-        weixin('detail', account_information)
-        mail(f'[{POLICY_NAME}] 账户信息更新', account_information)
-        plusplus_msg('账户信息更新', account_information)
+        logger.info("[%s] 发送账户信息：%s", now_time, account_information)
+        A.messager.send(f'[{POLICY_NAME}] 账户信息更新', f"{account_information}", A.messager.SIGNAL)
 
         # logger.debug("交易日期: %s, 账号：%s,可用资金：%.2f",date, A.acct, available_cash)
         if available_cash < MIN_CASH:
             msg = "现金不足：当前现金 %.0f 元 < 最少的要求 %.0f 元，请补充现金" % (available_cash, MIN_CASH)
             logger.warning(msg)
-            weixin('detail', msg)
-            mail(f'[{POLICY_NAME}] 请补充现金', msg)
-            plusplus_msg('请补充现金', msg)
+            A.messager.send(f'[{POLICY_NAME}] 请补充现金', f"{msg}", A.messager.ERROR)
 
     if _is_realtime(C) and (now_time < '093000' or now_time > "150000"):
         logger.warning("不在交易时间：%s", now_time)
@@ -560,10 +473,17 @@ def __handlebar(C):
     """
     logger.debug("K线数量%d,bar的第一个tick:%r,K线号:%d,最后一个bar:%r",
         C.time_tick_size,
-        C.is_new_bar(),
+        C.is_new_bar(), # 某根 K 线的第一个 tick 数据到来时，判定该 K 线为新的 K 线
         C.barpos,
         C.is_last_bar())
     """
+
+    # 这个代码很重要，否则，就会3秒一个tick就会触发交易一次，导致各种各样的问题，如频繁交易
+    # 之前我一直没找到这个函数，以为没有呢，靠！
+    # 有了这个，我就只会在设置的交易回调间隔最后一个tick（比如我现在设置的1分钟，所以只有在这分钟的第20个tick才触发），
+    # 才会触发，否则，就无情的返回了
+    if not C.is_last_bar():
+        return
 
     # 注：在回测模式中，交易函数调用虚拟账号进行交易，在历史 K 线上记录买卖点，用以计算策略净值/
     # 回测指标；实盘运行调用策略中设置的资金账号进行交易，产生实际委托；模拟运行模式下交易函数无
@@ -600,11 +520,4 @@ def __handlebar(C):
         msg = A.strategy.handle_one_fund(stock_code, str2date(date), last_price, last_ma, diff2last)
 
         if msg:
-            weixin('detail', f"[{POLICY_NAME}] 触发交易:\n{msg}")
-            mail(f'[{POLICY_NAME}] 触发交易', f"{msg}")
-            plusplus_msg('策略触发交易', f"{msg}")
-
-
-
-
-
+            A.messager.send(f'[{POLICY_NAME}] 策略触发交易', f"{msg}", A.messager.SIGNAL)
