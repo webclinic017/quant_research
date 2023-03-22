@@ -1,0 +1,14 @@
+start_date: "20130101"
+end_date: "20230101"
+baseline: 'sh000001'
+amount: 500000 # 初始总现金
+code: '600196'
+max_drawdown: -0.15
+ma: 200
+max_drawdown_windows_size: 60
+k_type: 'heikin-ashi' # 'heikin-ashi' # heikin-ashi, normal
+
+
+加个flag
+
+晚上继续云聪

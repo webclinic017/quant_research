@@ -188,11 +188,12 @@ class PyramidV2Strategy(Strategy):
                 current_grid_position < self.negative_threshold_dict[code]:
             # 根据偏离均线幅度，决定购买的份数
             # 买入
-            msg = "[%s] %s当前价格[%.4f]，距离均线[%.4f]，距离百分比[%.1f%%]，距离[%d]格,低于上次[第%d格],准备买入%.1f元  基<---钱" % (
+            msg = "[%s] %s当前价[%.4f],均线[%.4f],阈值[%d]格,距离均线[%.1f%%/%d]格,低于上次[第%d格],准备买%.1f元  基<---钱" % (
                 date2str(today),
                 code,
                 price,
                 ma,
+                self.negative_threshold_dict[code],
                 diff2last * 100,
                 current_grid_position,
                 last_grid_position,
@@ -215,11 +216,12 @@ class PyramidV2Strategy(Strategy):
                 current_grid_position > self.positive_threshold_dict[code]:
 
             # 扣除手续费后，下取整算购买份数
-            msg = "[%s] %s当前价格[%.4f],距离均线[%.4f],距离百分比[%.1f%%],距离[%d]格,高于上次[第%d格],准备卖出%.1f元  基===>钱" % (
+            msg = "[%s] %s当前价[%.4f],均线[%.4f],阈值[%d]格,距离均线[%.1f%%/%d格],高于上次[第%d格],准备卖%.1f元  基===>钱" % (
                 date2str(today),
                 code,
                 price,
                 ma,
+                self.negative_threshold_dict[code],
                 diff2last * 100,
                 current_grid_position,
                 last_grid_position,

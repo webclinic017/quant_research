@@ -315,12 +315,14 @@ def OLS(X, y):
     # 参数[β0、β1]，R2
     return results.params, results.rsquared
 
+
 def load_params(name='params.yml'):
     if not os.path.exists(name):
         raise ValueError(f"参数文件[{name}]不存在，请检查路径")
-    params = yaml.load(open(name,'r',encoding='utf-8'),Loader=yaml.FullLoader)
+    params = yaml.load(open(name, 'r', encoding='utf-8'), Loader=yaml.FullLoader)
     params = AttributeDict(params.items())
     return params
+
 
 def get_monthly_duration(start_date, end_date):
     """
@@ -366,13 +368,18 @@ def get_monthly_duration(start_date, end_date):
 
     return scopes
 
+
 def get_series(df, index_key, num):
     """
     # 先前key之前或者之后的series
     """
-    loc = df.index.get_loc(index_key)
-    s = df.iloc[loc + num]
-    return s
+    try:
+        loc = df.index.get_loc(index_key)
+        s = df.iloc[loc + num]
+        return s
+    except KeyError:
+        return None
+
 
 # python -m utils.utils
 if __name__ == '__main__':
@@ -380,5 +387,5 @@ if __name__ == '__main__':
     print(p)
     print(p.start_date)
 
-    p = get_monthly_duration('20140101','20230201')
+    p = get_monthly_duration('20140101', '20230201')
     print(p)

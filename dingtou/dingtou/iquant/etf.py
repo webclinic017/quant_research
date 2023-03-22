@@ -84,7 +84,7 @@ last_grid_position = f"{data_dir}\\last_grid_position.json"
 
 POLICY_NAME = 'ETF定投'
 MAX_TRADE_NUM_PER_DAY = 3  # 每天每只股票最大的交易次数（买和卖）
-MIN_CASH = 80000  # 小于这个资金，就要报警了，防止资金不够，默认是300000比较合适，低于20万提醒，然后银转证到30万
+MIN_CASH = 30000  # 小于这个资金，就要报警了，防止资金不够，默认是300000比较合适，低于20万提醒，然后银转证到30万
 
 conf = load_conf(conf_path)
 
@@ -392,7 +392,9 @@ def deal_callback(ContextInfo, dealInfo):
     logger.info(headers)
     logger.info(data)
 
-    A.messager.send(f'[{POLICY_NAME}] 交易成功', f"{headers}\n{data}", A.messager.SIGNAL)
+    account_info = get_account_info()
+
+    A.messager.send(f'[{POLICY_NAME}] 交易成功', f"交易细节：\n{headers}\n{data}\n资产变动为：\n{account_info}", A.messager.SIGNAL)
 
     flag_header = False
     if not os.path.exists(trans_log):

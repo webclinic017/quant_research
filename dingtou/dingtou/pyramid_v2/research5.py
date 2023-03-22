@@ -5,7 +5,7 @@ import time
 
 import pandas as pd
 
-from dingtou.pyramid_v2.pyramid_v2 import main
+from dingtou.pyramid_v2.main import main
 from dingtou.utils import utils
 from dingtou.utils.multi_processor import execute
 from dingtou.utils.utils import split_periods, AttributeDict, str2date
